@@ -23,7 +23,7 @@ int main(int argc, char ** argv)
   //wellMatrices.read_matrices();
 
   // std::cout << wellMatrices.duneB[0][0] << std::endl;
-  /*
+
   const static int dim = 3;
   const static int dim_wells = 4;
 
@@ -54,7 +54,7 @@ int main(int argc, char ** argv)
   std::cout << duneD.nonzeroes() << std::endl;
   std::cout << duneD.N() << std::endl;
   std::cout << duneD.M() << std::endl;
-  */
+
 
   std::vector<double> Dvals, Bvals, Cvals;
   std::vector<int> Dcols, Drows;
@@ -83,15 +83,15 @@ int main(int argc, char ** argv)
   std::cout << size(Bvals) << " " <<std::endl;
   std::cout << "Bcols: ";
   std::cout << size(Bcols) << " " <<std::endl;
-  std::cout << "Drows: ";
+  std::cout << "Brows: ";
   std::cout << size(Brows) << " " <<std::endl;
   std::cout << std::endl;
 
   std::cout << "Cvals: ";
   std::cout << size(Cvals) << " " <<std::endl;
-  std::cout << "Dcols: ";
+  std::cout << "Ccols: ";
   std::cout << size(Ccols) << " " <<std::endl;
-  std::cout << "Drows: ";
+  std::cout << "Crows: ";
   std::cout << size(Crows) << " " <<std::endl;
   std::cout << std::endl;
 
@@ -103,12 +103,11 @@ int main(int argc, char ** argv)
   //std::cout << std::endl;
 
   unsigned int Mb = 16;
-  unsigned int dim = 3;
-  unsigned int dim_wells = 4;
-
-  std::vector<double> z1;          // z1 = B * x
-  std::vector<double> z2;
-  std::fill(z1.begin(), z1.end(), 0.0);
+  unsigned int length = 4*Mb;
+  std::vector<double> z1(length, 1.0);          // z1 = B * x
+  std::vector<double> z2(length, 0.0);
+  //std::fill(z1.begin(), z1.end(), 0.0);
+  //std::fill(z2.begin(), z2.end(), 0.0);
 /*
   for (unsigned int row = 0; row < Mb; ++row) {
         // for every block in the row
@@ -126,9 +125,9 @@ int main(int argc, char ** argv)
             }
         }
     }
-  */
+*/
 
-    z1 = vecRes;
+    // z1 = vecRes;
 
     std::cout << std::endl;
     std::cout << "\nBx: ";
@@ -139,9 +138,9 @@ int main(int argc, char ** argv)
     unsigned int M = dim_wells*Mb;
     void *UMFPACK_Symbolic, *UMFPACK_Numeric;
 
-    umfpack_di_symbolic(M, M, Dcols.data(), Drows.data(), Dvals.data(), &UMFPACK_Symbolic, nullptr, nullptr);
-    umfpack_di_numeric(Dcols.data(), Drows.data(), Dvals.data(), UMFPACK_Symbolic, &UMFPACK_Numeric, nullptr, nullptr);
-    umfpack_di_solve(UMFPACK_A, Dcols.data(), Drows.data(), Dvals.data(), z2.data(), z1.data(), UMFPACK_Numeric, nullptr, nullptr);
+    (void) umfpack_di_symbolic(M, M, Dcols.data(), Drows.data(), Dvals.data(), &UMFPACK_Symbolic, nullptr, nullptr);
+    (void) umfpack_di_numeric(Dcols.data(), Drows.data(), Dvals.data(), UMFPACK_Symbolic, &UMFPACK_Numeric, nullptr, nullptr);
+    (void) umfpack_di_solve(UMFPACK_A, Dcols.data(), Drows.data(), Dvals.data(), z2.data(), z1.data(), UMFPACK_Numeric, nullptr, nullptr);
 
     std::cout << std::endl;
     std::cout << "\nD-1Bx: ";
@@ -149,4 +148,6 @@ int main(int argc, char ** argv)
     for (const auto& val : z2) std::cout << val << " ";
     std::cout << std::endl;
 
+    umfpack_di_free_symbolic(&UMFPACK_Symbolic);
+    umfpack_di_free_numeric(&UMFPACK_Numeric);
 }
