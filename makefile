@@ -14,7 +14,7 @@ LDFLAGS_HIP   =
 LDFLAGS_DUNE = -ldunecommon -ldunegeometry
 
 # UMFPack
-LDFLAGS_UMFPACK = -lumfpack -lsuitesparseconfig
+LDFLAGS_UMFPACK = -lumfpack
 
 # Source code
 OBJS= main.o \
