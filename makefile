@@ -13,6 +13,9 @@ LDFLAGS_HIP   =
 # DUNE
 LDFLAGS_DUNE = -ldunecommon -ldunegeometry
 
+# UMFPack
+LDFLAGS_UMFPACK = -lumfpack -lsuitesparseconfig
+
 # Source code
 OBJS= main.o \
 	read-vectors.o
@@ -26,10 +29,10 @@ all:
 	cp build/bin/ILU0Solver ./WellSolver
 
 ilu0Solver: $(OBJS)
-	    $(CC) $(CFLAG) $(CFLAGS) $(LDFLAG) $(LDFLAGS) $(LDFLAGS_DUNE) -o ILU0Solver $(OBJS)
+	    $(CC) $(CFLAG) $(CFLAGS) $(LDFLAG) $(LDFLAGS) $(LDFLAGS_DUNE) $(LDFLAGS_UMFPACK) -o ILU0Solver $(OBJS)
 
 %.o : %.cpp
-	$(CC) $(CFLAG) $(CFLAGS) -c $< -o $@
+	$(CC) -I/usr/include/suitesparse $(CFLAG) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -rf ./WellSolver build/bin

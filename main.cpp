@@ -12,7 +12,7 @@
 
 #include "read-vectors.hpp"
 
-#include <dune/istl/umfpack.hh>
+//#include <dune/istl/umfpack.hh>
 #include <umfpack.h>
 
 int main(int argc, char ** argv)
@@ -101,7 +101,6 @@ int main(int argc, char ** argv)
   std::cout << size(vecRes) << " " <<std::endl;
   //for (const auto& val : vecRes) std::cout << val << " ";
   //std::cout << std::endl;
-  std::cout << std::endl;
 
   unsigned int Mb = 16;
   unsigned int dim = 3;
@@ -142,7 +141,6 @@ int main(int argc, char ** argv)
 
     umfpack_di_symbolic(M, M, Dcols.data(), Drows.data(), Dvals.data(), &UMFPACK_Symbolic, nullptr, nullptr);
     umfpack_di_numeric(Dcols.data(), Drows.data(), Dvals.data(), UMFPACK_Symbolic, &UMFPACK_Numeric, nullptr, nullptr);
-
     umfpack_di_solve(UMFPACK_A, Dcols.data(), Drows.data(), Dvals.data(), z2.data(), z1.data(), UMFPACK_Numeric, nullptr, nullptr);
 
     std::cout << std::endl;
