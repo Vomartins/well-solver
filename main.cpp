@@ -26,7 +26,7 @@ int main(int argc, char ** argv)
 
   const static int dim = 3;
   const static int dim_wells = 4;
-
+/*
   // Matrix type for matrix D
   using DiagMatrixBlockWellType = Dune::FieldMatrix<double,dim_wells,dim_wells>;
   using DiagMatWell = Dune::BCRSMatrix<DiagMatrixBlockWellType>;
@@ -40,21 +40,32 @@ int main(int argc, char ** argv)
   OffDiagMatWell duneC;
 
   const char* fileName_D = "matrix-D.mm";
-  //const char* fileName_B = "matrix-B.mm";
-  //const char* fileName_C = "matrix-C.mm";
+  const char* fileName_B = "matrix-B.mm";
+  const char* fileName_C = "matrix-C.mm";
 
   std::ifstream fileIn_D(fileName_D);
-  //std::ifstream fileIn_B(fileName_B);
-  //std::ifstream fileIn_C(fileName_C);
+  std::ifstream fileIn_B(fileName_B);
+  std::ifstream fileIn_C(fileName_C);
 
   Dune::readMatrixMarket(duneD, fileIn_D);
-  //Dune::readMatrixMarket(duneB, fileIn_B);
-  //Dune::readMatrixMarket(duneC, fileIn_C);
+  Dune::readMatrixMarket(duneB, fileIn_B);
+  Dune::readMatrixMarket(duneC, fileIn_C);
+
+  std::cout << "########## Dune Matrices ##########" << std::endl;
 
   std::cout << duneD.nonzeroes() << std::endl;
   std::cout << duneD.N() << std::endl;
   std::cout << duneD.M() << std::endl;
 
+  std::cout << duneB.nonzeroes() << std::endl;
+  std::cout << duneB.N() << std::endl;
+  std::cout << duneB.M() << std::endl;
+
+  std::cout << duneC.nonzeroes() << std::endl;
+  std::cout << duneC.N() << std::endl;
+  std::cout << duneC.M() << std::endl;
+*/
+  std::cout << "########## std::vector ##########" << std::endl;
 
   std::vector<double> Dvals, Bvals, Cvals;
   std::vector<int> Dcols, Drows;
@@ -71,8 +82,8 @@ int main(int argc, char ** argv)
   //std::cout << std::endl;
   std::cout << "Dcols: ";
   std::cout << size(Dcols) << " " <<std::endl;
-  //for (const auto& val : Dcols) std::cout << val << " ";
-  //std::cout << std::endl;
+  for (const auto& val : Dcols) std::cout << val << " ";
+  std::cout << std::endl;
   std::cout << "Drows: ";
   std::cout << size(Drows) << " " <<std::endl;
   //for (const auto& val : Drows) std::cout << val << " ";
@@ -85,6 +96,7 @@ int main(int argc, char ** argv)
   std::cout << size(Bcols) << " " <<std::endl;
   std::cout << "Brows: ";
   std::cout << size(Brows) << " " <<std::endl;
+  for (const auto& val : Bcols) std::cout << val << " ";
   std::cout << std::endl;
 
   std::cout << "Cvals: ";
@@ -93,6 +105,7 @@ int main(int argc, char ** argv)
   std::cout << size(Ccols) << " " <<std::endl;
   std::cout << "Crows: ";
   std::cout << size(Crows) << " " <<std::endl;
+  for (const auto& val : Ccols) std::cout << val << " ";
   std::cout << std::endl;
 
   std::vector<double> vecRes = loadResVector("vector-Res.bin");
@@ -104,10 +117,27 @@ int main(int argc, char ** argv)
 
   unsigned int Mb = 16;
   unsigned int length = 4*Mb;
-  std::vector<double> z1(length, 1.0);          // z1 = B * x
+  std::vector<double> z1(length, 0.0);          // z1 = B * x
   std::vector<double> z2(length, 0.0);
   //std::fill(z1.begin(), z1.end(), 0.0);
   //std::fill(z2.begin(), z2.end(), 0.0);
+
+  for (unsigned int row = 0; row < Mb; ++row) {
+        // for every block in the row
+        for (unsigned int blockID = Brows[row]; blockID < Brows[row + 1]; ++blockID) {
+            unsigned int colIdx = Bcols[blockID];
+            for (unsigned int j = 0; j < dim_wells; ++j) {
+                double temp = 0.0;
+                for (unsigned int k = 0; k < dim; ++k){
+                    //std::cout << colIdx * dim + k << std::endl;
+                    //std::cout << temp << std::endl;
+                }
+                z1[row * dim_wells + j] += temp;
+                //std::cout << z1[row * dim_wells + j] << " ";
+            }
+        }
+    }
+
 /*
   for (unsigned int row = 0; row < Mb; ++row) {
         // for every block in the row
@@ -116,12 +146,12 @@ int main(int argc, char ** argv)
             for (unsigned int j = 0; j < dim_wells; ++j) {
                 double temp = 0.0;
                 for (unsigned int k = 0; k < dim; ++k) {
-                    //std::cout << Bvals[blockID * dim * dim_wells + j * dim + k] << " --- "  << std::endl;
+                    std::cout << Bvals[blockID * dim * dim_wells + j * dim + k] << " --- " << std::endl;
                     temp += Bvals[blockID * dim * dim_wells + j * dim + k] * vecRes[colIdx * dim + k];
                     //std::cout << temp << std::endl;
                 }
                 z1[row * dim_wells + j] += temp;
-                std::cout << z1[row * dim_wells + j] << " ";
+                //std::cout << z1[row * dim_wells + j] << " ";
             }
         }
     }
