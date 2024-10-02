@@ -90,10 +90,10 @@ int main(int argc, char ** argv)
   std::vector<int> Dcols, Drows;
   std::vector<unsigned int> Bcols, Ccols, Brows, Crows;
 
-  loadSparseMatrixVectors(Dvals, Dcols, Drows, "matrix-D.bin");
-  loadSparseMatrixVectors(Bvals, Bcols, Brows, "matrix-B.bin");
-  loadSparseMatrixVectors(Cvals, Ccols, Crows, "matrix-C.bin");
-  std::vector<double> vecSol = loadResVector("vector-Sol.bin");
+  loadSparseMatrixVectors(Dvals, Dcols, Drows, "data/matrix-D.bin");
+  loadSparseMatrixVectors(Bvals, Bcols, Brows, "data/matrix-B.bin");
+  loadSparseMatrixVectors(Cvals, Ccols, Crows, "data/matrix-C.bin");
+  std::vector<double> vecSol = loadResVector("data/vector-Sol.bin");
 
   //std::cout << "Dvals: " << size(Dvals) << std::endl;
   //for (const auto& val : Dvals) std::cout << val << " ";
