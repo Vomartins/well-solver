@@ -2,7 +2,11 @@
 
  void WellMatrices::read_matrices()
   {
-    Dune::loadMatrixMarket(duneD, "matrix-D.mm");
-    Dune::loadMatrixMarket(duneB, "matrix-B.mm");
-    Dune::loadMatrixMarket(duneC, "matrix-C.mm");
+    Dune::loadMatrixMarket(duneD, fileName_D);
+    //Dune::loadMatrixMarket(duneB, fileName_B);
+    //Dune::loadMatrixMarket(duneC, fileName_C);
+
+    //Dune::readMatrixMarket(duneD, fileIn_D);
+    //Dune::readMatrixMarket(duneB, fileIn_B);
+    //Dune::readMatrixMarket(duneC, fileIn_C);
   }

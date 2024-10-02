@@ -1,7 +1,10 @@
+
 #include <dune/common/version.hh>
 #include <dune/istl/bcrsmatrix.hh>
 #include <dune/common/fmatrix.hh>
 #include <dune/istl/matrixmarket.hh>
+#include <fstream>
+
 
 class WellMatrices
 {
@@ -19,6 +22,14 @@ public:
 
   DiagMatWell duneD;
   OffDiagMatWell duneB, duneC;
+
+  const char* fileName_D = "matrix-D.mm";
+  const char* fileName_B = "matrix-B.mm";
+  const char* fileName_C = "matrix-C.mm";
+
+  //std::ifstream fileIn_D(fileName_D);
+  //std::ifstream fileIn_B(fileName_B);
+  //std::ifstream fileIn_C(fileName_C);
 
 public:
     void read_matrices();
