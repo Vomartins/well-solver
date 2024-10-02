@@ -1,7 +1,8 @@
 
 #include "read-vectors.hpp"
 
-void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<int>& vecCols, std::vector<int>& vecRows, const std::string& filename)
+template <typename I>
+void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<I>& vecCols, std::vector<I>& vecRows, const std::string& filename)
 {
     char absPath[PATH_MAX];
     if (realpath(filename.c_str(), absPath) == nullptr) {
@@ -25,51 +26,19 @@ void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<int>& vec
     size_t size2 = 0;
     inFile.read(reinterpret_cast<char*>(&size2), sizeof(size2));
     vecCols.resize(size2);
-    inFile.read(reinterpret_cast<char*>(vecCols.data()), size2 * sizeof(int));
+    inFile.read(reinterpret_cast<char*>(vecCols.data()), size2 * sizeof(I));
 
     // Read rows vector
     size_t size3 = 0;
     inFile.read(reinterpret_cast<char*>(&size3), sizeof(size3));
     vecRows.resize(size3);
-    inFile.read(reinterpret_cast<char*>(vecRows.data()), size3 * sizeof(int));
+    inFile.read(reinterpret_cast<char*>(vecRows.data()), size3 * sizeof(I));
 
     inFile.close();
 }
 
-void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<unsigned int>& vecCols, std::vector<unsigned int>& vecRows, const std::string& filename)
-{
-    char absPath[PATH_MAX];
-    if (realpath(filename.c_str(), absPath) == nullptr) {
-        std::cerr << "Error resolving absolute path: " << filename << std::endl;
-        return;
-    }
-
-    std::ifstream inFile(absPath, std::ios::in | std::ios::binary);
-    if (!inFile) {
-        std::cerr << "Error opening file: " << std::strerror(errno)<< std::endl;
-        return;
-    }
-
-    // Read values vector
-    size_t size1 = 0;
-    inFile.read(reinterpret_cast<char*>(&size1), sizeof(size1));
-    vecVals.resize(size1);
-    inFile.read(reinterpret_cast<char*>(vecVals.data()), size1 * sizeof(double));
-
-    // Read columns vector
-    size_t size2 = 0;
-    inFile.read(reinterpret_cast<char*>(&size2), sizeof(size2));
-    vecCols.resize(size2);
-    inFile.read(reinterpret_cast<char*>(vecCols.data()), size2 * sizeof(unsigned int));
-
-    // Read rows vector
-    size_t size3 = 0;
-    inFile.read(reinterpret_cast<char*>(&size3), sizeof(size3));
-    vecRows.resize(size3);
-    inFile.read(reinterpret_cast<char*>(vecRows.data()), size3 * sizeof(unsigned int));
-
-    inFile.close();
-}
+template void loadSparseMatrixVectors(std::vector<double>&, std::vector<int>&, std::vector<int>&, const std::string&);
+template void loadSparseMatrixVectors(std::vector<double>&, std::vector<unsigned int>&, std::vector<unsigned int>&, const std::string&);
 
 std::vector<double> loadResVector(const std::string& filename)
 {
@@ -173,4 +142,3 @@ void squareCSCtoCSR(std::vector<double> Dvals, std::vector<int> Drows, std::vect
     }
     Drows_[sizeDcols-1] = Dcols[sizeDcols-1];
 }
-

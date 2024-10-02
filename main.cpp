@@ -195,7 +195,7 @@ int main(int argc, char ** argv)
 
     M = size(Drows_)-1 ;
 
-    MultisegmentWellContribution mswc;
+    RocsparseMSWContribution mswc;
     mswc.initialize(M, nnzs, sizeDvals_, sizeDrows_, sizeDcols_);
     mswc.copyHostToDevice(Dvals_, Drows_, Dcols_, z1);
 

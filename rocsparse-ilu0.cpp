@@ -2,31 +2,16 @@
 
 #include "rocsparse-ilu0.hpp"
 
-/*
-#define HIP_CHECK(STAT)                                  \
-    do {                                                 \
-        const hipError_t stat = (STAT);                  \
-        if(stat != hipSuccess)                           \
-        {                                                \
-            std::ostringstream oss;                      \
-            oss << "rocsparseSolverBackend::hip ";       \
-            oss << "error: " << hipGetErrorString(stat); \
-            OPM_THROW(std::logic_error, oss.str());      \
-        }                                                \
-    } while(0)
-
-#define ROCSPARSE_CHECK(STAT)                            \
-    do {                                                 \
-        const rocsparse_status stat = (STAT);            \
-        if(stat != rocsparse_status_success)             \
-        {                                                \
-            std::ostringstream oss;                      \
-            oss << "rocsparseSolverBackend::rocsparse "; \
-            oss << "error: " << stat;                    \
-            OPM_THROW(std::logic_error, oss.str());      \
-        }                                                \
-    } while(0)
-*/
+#define HIP_CALL(call)                                     \
+  do {                                                     \
+    hipError_t err = call;                                 \
+    if (hipSuccess != err) {                               \
+      printf("HIP ERROR (code = %d, %s) at %s:%d\n", err,  \
+             hipGetErrorString(err), __FILE__, __LINE__);  \
+      assert(0);                                           \
+      exit(1);                                             \
+    }                                                      \
+  } while (0)
 
 #define ROCSPARSE_CALL(call)                                                   \
   do {                                                                         \
@@ -39,18 +24,8 @@
     }                                                                          \
   } while (0)
 
-#define HIP_CALL(call)                                     \
-  do {                                                     \
-    hipError_t err = call;                                 \
-    if (hipSuccess != err) {                               \
-      printf("HIP ERROR (code = %d, %s) at %s:%d\n", err,  \
-             hipGetErrorString(err), __FILE__, __LINE__);  \
-      assert(0);                                           \
-      exit(1);                                             \
-    }                                                      \
-  } while (0)
 
-  MultisegmentWellContribution::~MultisegmentWellContribution() {
+  RocsparseMSWContribution::~RocsparseMSWContribution() {
     HIP_CALL(hipFree(d_Dvals_hip));
     HIP_CALL(hipFree(d_Drows_hip));
     HIP_CALL(hipFree(d_Dcols_hip));
@@ -65,7 +40,7 @@
     ROCSPARSE_CALL(rocsparse_destroy_mat_info(ilu_info));
   }
 
-  void MultisegmentWellContribution::initialize(unsigned int M_, unsigned int nnzs_, unsigned int sizeDvals_, unsigned int sizeDrows_, unsigned int sizeDcols_)
+  void RocsparseMSWContribution::initialize(unsigned int M_, unsigned int nnzs_, unsigned int sizeDvals_, unsigned int sizeDrows_, unsigned int sizeDcols_)
   {
     this->M = M_;
     this->nnzs = nnzs_;
@@ -81,7 +56,7 @@
     HIP_CALL(hipMalloc(&z2_hip, sizeof(double)*M));
   }
 
-  void MultisegmentWellContribution::copyHostToDevice(std::vector<double> Dvals,  std::vector<int> Drows, std::vector<int> Dcols, std::vector<double> z1)
+  void RocsparseMSWContribution::copyHostToDevice(std::vector<double> Dvals,  std::vector<int> Drows, std::vector<int> Dcols, std::vector<double> z1)
   {
     HIP_CALL(hipMemcpy(d_Dvals_hip, Dvals.data(), sizeDvals*sizeof(double), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(d_Drows_hip, Drows.data(), sizeDrows*sizeof(int), hipMemcpyHostToDevice));
@@ -90,7 +65,7 @@
 
   }
 
-  bool MultisegmentWellContribution::analyseMatrix()
+  bool RocsparseMSWContribution::analyseMatrix()
   {
     std::size_t d_bufferSize_M, d_bufferSize_L, d_bufferSize_U, d_bufferSize;
 
@@ -143,7 +118,7 @@
     return true;
   }
 
-  void MultisegmentWellContribution::ilu0Solver()
+  void RocsparseMSWContribution::ilu0Solver()
   {
     double one  = 1.0;
 
@@ -174,7 +149,7 @@
 					  descr_U, d_Dvals_hip, d_Drows_hip, d_Dcols_hip, ilu_info, z_aux_hip, z2_hip, rocsparse_solve_policy_auto, d_buffer));
   }
 
-  std::vector<double> MultisegmentWellContribution::solveSytem()
+  std::vector<double> RocsparseMSWContribution::solveSytem()
   {
 
     ilu0Solver();
