@@ -86,6 +86,10 @@ int main(int argc, char ** argv)
 */
   std::cout << "########## std::vector ##########" << std::endl;
 
+  //std::string reservoir = argv[1];
+
+  //std::cout << reservoir <<std::endl;
+
   std::vector<double> Dvals, Bvals, Cvals;
   std::vector<int> Dcols, Drows;
   std::vector<unsigned int> Bcols, Ccols, Brows, Crows;
@@ -93,13 +97,12 @@ int main(int argc, char ** argv)
   loadSparseMatrixVectors(Dvals, Dcols, Drows, "data/matrix-D.bin");
   loadSparseMatrixVectors(Bvals, Bcols, Brows, "data/matrix-B.bin");
   loadSparseMatrixVectors(Cvals, Ccols, Crows, "data/matrix-C.bin");
+  std::vector<double> vecRes = loadResVector("data/vector-Res.bin");
   std::vector<double> vecSol = loadResVector("data/vector-Sol.bin");
 
   //std::cout << "Dvals: " << size(Dvals) << std::endl;
   //for (const auto& val : Dvals) std::cout << val << " ";
   //std::cout << std::endl;
-
-  std::vector<double> vecRes = loadResVector("vector-Res.bin");
 
   unsigned int Mb = size(Brows)-1 ;
   unsigned int length = dim_wells*Mb;

@@ -3,9 +3,16 @@
 
 void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<int>& vecCols, std::vector<int>& vecRows, const std::string& filename)
 {
-    std::ifstream inFile(filename, std::ios::in | std::ios::binary);
+    char absPath[PATH_MAX];
+    if (realpath(filename.c_str(), absPath) == nullptr) {
+        std::cerr << "Error resolving absolute path: " << filename << std::endl;
+        return;
+    }
+
+    std::cout << "Opening file with absolute path: " << absPath << std::endl;
+    std::ifstream inFile(absPath, std::ios::in | std::ios::binary);
     if (!inFile) {
-        std::cerr << "Error opening file for reading." << std::endl;
+        std::cerr << "Error opening file: " << std::strerror(errno)<< std::endl;
         return;
     }
 
@@ -32,9 +39,16 @@ void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<int>& vec
 
 void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<unsigned int>& vecCols, std::vector<unsigned int>& vecRows, const std::string& filename)
 {
-    std::ifstream inFile(filename, std::ios::in | std::ios::binary);
+    char absPath[PATH_MAX];
+    if (realpath(filename.c_str(), absPath) == nullptr) {
+        std::cerr << "Error resolving absolute path: " << filename << std::endl;
+        return;
+    }
+
+    std::cout << "Opening file with absolute path: " << absPath << std::endl;
+    std::ifstream inFile(absPath, std::ios::in | std::ios::binary);
     if (!inFile) {
-        std::cerr << "Error opening file for reading." << std::endl;
+        std::cerr << "Error opening file: " << std::strerror(errno)<< std::endl;
         return;
     }
 
@@ -61,10 +75,15 @@ void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<unsigned 
 
 std::vector<double> loadResVector(const std::string& filename)
 {
-    std::ifstream inFile(filename, std::ios::in | std::ios::binary);  // Open file in binary mode
+    char absPath[PATH_MAX];
+    if (realpath(filename.c_str(), absPath) == nullptr) {
+        std::cerr << "Error resolving absolute path: " << filename << std::endl;
+    }
+
+    std::cout << "Opening file with absolute path: " << absPath << std::endl;
+    std::ifstream inFile(absPath, std::ios::in | std::ios::binary);
     if (!inFile) {
-        std::cerr << "Error opening file for reading." << std::endl;
-        return {};
+        std::cerr << "Error opening file: " << std::strerror(errno)<< std::endl;
     }
 
     // Read the size of the vector

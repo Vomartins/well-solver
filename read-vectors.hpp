@@ -2,6 +2,8 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <unistd.h>
+#include <cstring>
 
 
 void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<int>& vecCols, std::vector<int>& vecRows, const std::string& filename);
