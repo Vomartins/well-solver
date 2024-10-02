@@ -9,7 +9,6 @@ void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<int>& vec
         return;
     }
 
-    std::cout << "Opening file with absolute path: " << absPath << std::endl;
     std::ifstream inFile(absPath, std::ios::in | std::ios::binary);
     if (!inFile) {
         std::cerr << "Error opening file: " << std::strerror(errno)<< std::endl;
@@ -45,7 +44,6 @@ void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<unsigned 
         return;
     }
 
-    std::cout << "Opening file with absolute path: " << absPath << std::endl;
     std::ifstream inFile(absPath, std::ios::in | std::ios::binary);
     if (!inFile) {
         std::cerr << "Error opening file: " << std::strerror(errno)<< std::endl;
@@ -80,7 +78,6 @@ std::vector<double> loadResVector(const std::string& filename)
         std::cerr << "Error resolving absolute path: " << filename << std::endl;
     }
 
-    std::cout << "Opening file with absolute path: " << absPath << std::endl;
     std::ifstream inFile(absPath, std::ios::in | std::ios::binary);
     if (!inFile) {
         std::cerr << "Error opening file: " << std::strerror(errno)<< std::endl;

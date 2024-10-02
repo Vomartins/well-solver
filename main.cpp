@@ -38,6 +38,17 @@ int main(int argc, char ** argv)
 
   const static int dim = 3;
   const static int dim_wells = 4;
+
+  std::string reservoir;
+
+  if (argc > 1){
+    reservoir = argv[1];
+
+    std::cout << "Reservoir: " << reservoir << std::endl;
+  } else {
+    std::cout << "No reservoir provided. Please enter one option as command-line argument (norne, msw).";
+  }
+
 /*
   WellMatrices wellMatrices;
 
@@ -86,19 +97,15 @@ int main(int argc, char ** argv)
 */
   std::cout << "########## std::vector ##########" << std::endl;
 
-  //std::string reservoir = argv[1];
-
-  //std::cout << reservoir <<std::endl;
-
   std::vector<double> Dvals, Bvals, Cvals;
   std::vector<int> Dcols, Drows;
   std::vector<unsigned int> Bcols, Ccols, Brows, Crows;
 
-  loadSparseMatrixVectors(Dvals, Dcols, Drows, "data/matrix-D.bin");
-  loadSparseMatrixVectors(Bvals, Bcols, Brows, "data/matrix-B.bin");
-  loadSparseMatrixVectors(Cvals, Ccols, Crows, "data/matrix-C.bin");
-  std::vector<double> vecRes = loadResVector("data/vector-Res.bin");
-  std::vector<double> vecSol = loadResVector("data/vector-Sol.bin");
+  loadSparseMatrixVectors(Dvals, Dcols, Drows, "data/"+reservoir+"/matrix-D.bin");
+  loadSparseMatrixVectors(Bvals, Bcols, Brows, "data/"+reservoir+"/matrix-B.bin");
+  loadSparseMatrixVectors(Cvals, Ccols, Crows, "data/"+reservoir+"/matrix-C.bin");
+  std::vector<double> vecRes = loadResVector("data/"+reservoir+"/vector-Res.bin");
+  std::vector<double> vecSol = loadResVector("data/"+reservoir+"/vector-Sol.bin");
 
   //std::cout << "Dvals: " << size(Dvals) << std::endl;
   //for (const auto& val : Dvals) std::cout << val << " ";
