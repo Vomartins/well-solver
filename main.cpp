@@ -11,6 +11,8 @@
 //#include <dune/istl/umfpack.hh>
 #include <umfpack.h>
 
+#define VAR_NAME(var) (#var)
+
 double errorInfinityNorm(std::vector<double> vecSol, std::vector<double> vec, bool printError = false, bool printErrorVector = false){
   std::vector<double> error(size(vecSol), -1.0);
 
@@ -33,6 +35,23 @@ double errorInfinityNorm(std::vector<double> vecSol, std::vector<double> vec, bo
   return norm_error;
 }
 
+template <typename T>
+void printVector(const std::vector<T>& vec, const std::string& name){
+  std::cout << name <<": " << size(vec) << std::endl;
+  std::cout << "Error vector: [ ";
+  for (const auto& val : vec) std::cout << val << " ";
+  std::cout << "]";
+  std::cout << std::endl;
+  std::cout << std::endl;
+}
+
+template <typename T>
+void printVectorWrapper(const std::vector<T>& vec, const std::string& name) {
+    printVector(vec, name);
+}
+
+#define PRINT_VECTOR(vec) printVectorWrapper(vec, VAR_NAME(vec))
+
 int main(int argc, char ** argv)
 {
 
@@ -46,7 +65,8 @@ int main(int argc, char ** argv)
 
     std::cout << "Reservoir: " << reservoir << std::endl;
   } else {
-    std::cout << "No reservoir provided. Please enter one option as command-line argument (norne, msw).";
+    std::cout << "No reservoir provided. Please enter one option as command-line argument (norne, msw)." << std::endl;
+    return 1;
   }
 
 /*
@@ -107,10 +127,6 @@ int main(int argc, char ** argv)
   std::vector<double> vecRes = loadResVector("data/"+reservoir+"/vector-Res.bin");
   std::vector<double> vecSol = loadResVector("data/"+reservoir+"/vector-Sol.bin");
 
-  //std::cout << "Dvals: " << size(Dvals) << std::endl;
-  //for (const auto& val : Dvals) std::cout << val << " ";
-  //std::cout << std::endl;
-
   unsigned int Mb = size(Brows)-1 ;
   unsigned int length = dim_wells*Mb;
 
@@ -132,11 +148,7 @@ int main(int argc, char ** argv)
         }
     }
 
-    std::cout << "\nBx: ";
-    std::cout << size(z1) << std::endl;
-    for (const auto& val : z1) std::cout << val << " ";
-    std::cout << std::endl;
-    std::cout << std::endl;
+    PRINT_VECTOR(z1);
 
     unsigned int M = dim_wells*Mb;
     void *UMFPACK_Symbolic, *UMFPACK_Numeric;
@@ -146,11 +158,7 @@ int main(int argc, char ** argv)
     umfpack_di_numeric(Dcols.data(), Drows.data(), Dvals.data(), UMFPACK_Symbolic, &UMFPACK_Numeric, nullptr, nullptr);
     umfpack_di_solve(UMFPACK_A, Dcols.data(), Drows.data(), Dvals.data(), z2.data(), z1.data(), UMFPACK_Numeric, nullptr, nullptr);
 
-    std::cout << "\nD-1Bx: ";
-    std::cout << size(z2) << std::endl;
-    for (const auto& val : z2) std::cout << val << " ";
-    std::cout << std::endl;
-    std::cout << std::endl;
+    PRINT_VECTOR(z2);
 
     double errorCPU = errorInfinityNorm(vecSol, z2, true, true);
     std::cout << std::endl;
@@ -171,19 +179,9 @@ int main(int argc, char ** argv)
     std::cout << "########## RocSPARSE Solver ########## " << std::endl;
 
     unsigned int nnzs = size(Dvals);
-    //std::cout << "nnzs: " << nnzs << std::endl;
     unsigned int sizeDvals = size(Dvals);
-    //std::cout << "sizeDvals: " << sizeDvals <<std::endl;
-    //for(const auto& val : Dvals) std::cout << val << " ";
-    //std::cout << std::endl;
     unsigned int sizeDcols = size(Dcols);
-    //std::cout << "sizeDcols: " << sizeDcols <<std::endl;
-    //for(const auto& val : Dcols) std::cout << val << " ";
-    //std::cout << std::endl;
     unsigned int sizeDrows = size(Drows);
-    //std::cout << "sizeDrows: " << sizeDrows <<std::endl;
-    //for(const auto& val : Drows) std::cout << val << " ";
-    //std::cout << std::endl;
 
     std::vector<double> Dvals_(sizeDvals);
     std::vector<int> Dcols_(sizeDvals);
@@ -191,24 +189,9 @@ int main(int argc, char ** argv)
 
     squareCSCtoCSR(Dvals, Drows, Dcols, Dvals_, Drows_, Dcols_);
 
-    //std::cout << "############ Conversion ############" << std::endl;
-    //std::cout << "Dcols[-1] nnzb :" << Dcols[sizeDcols-1] << std::endl;
-    //std::cout << "############ Dvals_ ############" << std::endl;
     unsigned int sizeDvals_ = size(Dvals_);
-    //std::cout << "sizeDvals_: " << sizeDvals_ << std::endl;
-    //for(const auto& val : Dvals_) std::cout << val << " ";
-    //std::cout << std::endl;
-    //std::cout << "############ Drows_ ############" << std::endl;
     unsigned int sizeDrows_ = size(Drows_);
-    //std::cout << "sizeDrows_: " << sizeDrows_ << std::endl;
-    //for(const auto& val : Drows_) std::cout << val << " ";
-    //std::cout << std::endl;
-    //std::cout << "############ Dcols_ ############" << std::endl;
     unsigned int sizeDcols_ = size(Dcols_);
-    //std::cout << "sizeDcols_: " << sizeDcols_ << std::endl;
-    //for(const auto& val : Dcols_) std::cout << val << " ";
-    //std::cout << std::endl;
-
 
     M = size(Drows_)-1 ;
 
@@ -217,11 +200,7 @@ int main(int argc, char ** argv)
     mswc.copyHostToDevice(Dvals_, Drows_, Dcols_, z1);
 
     std::vector<double> z2_rocsparse = mswc.solveSytem();
-    std::cout << "\nD-1Bx: ";
-    std::cout << size(z2_rocsparse) << std::endl;
-    for(double val : z2_rocsparse) std::cout << val << " ";
-    std::cout << std::endl;
-    std::cout << std::endl;
+    PRINT_VECTOR(z2_rocsparse);
 
     double errorGPURocSPARSE = errorInfinityNorm(vecSol, z2_rocsparse, true, true);
     std::cout << std::endl;
