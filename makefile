@@ -16,24 +16,26 @@ LDFLAGS_DUNE = -ldunecommon -ldunegeometry
 # UMFPack
 LDFLAGS_UMFPACK = -lumfpack
 
-# RocSparse
-LDFLAGS_ROCSPARSE = -lrocsparse
+# RocM
+LDFLAGS_ROCM = -lrocsparse -lrocsolver -lrocblas
+
 
 # Source code
 OBJS= main.o \
 	read-vectors.o \
-	rocsparse-ilu0.o
+	rocsparse-ilu0.o \
+	rocsolver-ilu.o
 all:
 	@echo "===================================="
 	@echo "              Building              "
 	@echo "===================================="
 	mkdir -p build & mkdir -p build/bin
-	rsync -ru main.cpp read-vectors.cpp read-vectors.hpp rocsparse-ilu0.cpp rocsparse-ilu0.hpp makefile build/bin
+	rsync -ru main.cpp read-vectors.cpp read-vectors.hpp rocsparse-ilu0.cpp rocsparse-ilu0.hpp rocsolver-ilu.cpp rocsolver-ilu.hpp makefile build/bin
 	$(MAKE) -C build/bin ilu0Solver CC=$(COMPILER_HIP) CFLAGS=$(CFLAGS_HIP) LDFLAGS=$(LDFLAGS_HIP)
 	cp build/bin/ILU0Solver ./WellSolver
 
 ilu0Solver: $(OBJS)
-	    $(CC) $(CFLAG) $(CFLAGS) $(LDFLAG) $(LDFLAGS) $(LDFLAGS_DUNE) $(LDFLAGS_UMFPACK) $(LDFLAGS_ROCSPARSE) -o ILU0Solver $(OBJS)
+	    $(CC) $(CFLAG) $(CFLAGS) $(LDFLAG) $(LDFLAGS) $(LDFLAGS_DUNE) $(LDFLAGS_UMFPACK) $(LDFLAGS_ROCM) -o ILU0Solver $(OBJS)
 
 %.o : %.cpp
 	$(CC) -I/usr/include/suitesparse $(CFLAG) $(CFLAGS) -c $< -o $@

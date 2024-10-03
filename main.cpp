@@ -4,11 +4,9 @@
 #include <iostream>
 #include <algorithm>
 #include <math.h>
-#include "rocsparse-ilu0.hpp"
-//#include "well-matrices.hpp"
 #include "read-vectors.hpp"
-
-//#include <dune/istl/umfpack.hh>
+#include "rocsparse-ilu0.hpp"
+#include "rocsolver-ilu.hpp"
 #include <umfpack.h>
 
 #define VAR_NAME(var) (#var)
@@ -38,7 +36,7 @@ double errorInfinityNorm(std::vector<double> vecSol, std::vector<double> vec, bo
 template <typename T>
 void printVector(const std::vector<T>& vec, const std::string& name){
   std::cout << name <<": " << size(vec) << std::endl;
-  std::cout << "Error vector: [ ";
+  std::cout << "[ ";
   for (const auto& val : vec) std::cout << val << " ";
   std::cout << "]";
   std::cout << std::endl;
@@ -163,18 +161,8 @@ int main(int argc, char ** argv)
     double errorCPU = errorInfinityNorm(vecSol, z2, true, true);
     std::cout << std::endl;
 
-
-    //Dvals = {5, 8, 6, 3};
-    //Drows = {0, 1, 3, 2};
-    //Dcols = {0, 1, 3, 4, 4};
-
-    //Dvals = {3, 4, 7, 1, 5, 2, 9, 6, 5};
-    //Drows = {0, 1, 2, 0, 2, 0, 2, 4, 4};
-    //Dcols = {0, 1, 3, 5, 8, 9};
-
-    //Dvals = {1, 6, 2, 8, 7, 3, 9, 4, 5};
-    //Drows = {0, 2, 1, 3, 0, 2, 1, 3, 4};
-    //Dcols = {0, 2, 4, 6, 8, 9};
+    umfpack_di_free_symbolic(&UMFPACK_Symbolic);
+    umfpack_di_free_numeric(&UMFPACK_Numeric);
 
     std::cout << "########## RocSPARSE Solver ########## " << std::endl;
 
@@ -195,17 +183,31 @@ int main(int argc, char ** argv)
 
     M = size(Drows_)-1 ;
 
-    RocsparseMSWContribution mswc;
-    mswc.initialize(M, nnzs, sizeDvals_, sizeDrows_, sizeDcols_);
-    mswc.copyHostToDevice(Dvals_, Drows_, Dcols_, z1);
+    RocsparseMSWContribution rocsparseMswc;
+    rocsparseMswc.initialize(M, nnzs, sizeDvals_, sizeDrows_, sizeDcols_);
+    rocsparseMswc.copyHostToDevice(Dvals_, Drows_, Dcols_, z1);
 
-    std::vector<double> z2_rocsparse = mswc.solveSytem();
+    std::vector<double> z2_rocsparse = rocsparseMswc.solveSytem();
     PRINT_VECTOR(z2_rocsparse);
 
     double errorGPURocSPARSE = errorInfinityNorm(vecSol, z2_rocsparse, true, true);
     std::cout << std::endl;
 
-    umfpack_di_free_symbolic(&UMFPACK_Symbolic);
-    umfpack_di_free_numeric(&UMFPACK_Numeric);
+    std::cout << "########## RocSOLVER Solver ########## " << std::endl;
+
+    int lda = sizeDcols-1;
+
+    double* Dmatrix = squareCSCtoMatrix(Dvals, Drows, Dcols);
+
+    RocsolverMSWContribution rocsolverMswc;
+    rocsolverMswc.initialize(lda, lda);
+    rocsolverMswc.copyHostToDevice(Dmatrix, z1);
+
+    std::vector<double> z2_rocsolver = rocsolverMswc.solveSytem();
+    PRINT_VECTOR(z2_rocsolver);
+
+    double errorGPURocSOLVER = errorInfinityNorm(vecSol, z2_rocsolver, true, true);
+    std::cout << std::endl;
+
 
 }
