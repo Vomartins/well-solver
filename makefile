@@ -11,7 +11,7 @@ CFLAGS_HIP    = -D_HIP
 LDFLAGS_HIP   =
 
 # DUNE
-LDFLAGS_DUNE = -ldunecommon -ldunegeometry
+LDFLAGS_DUNE = -ldunecommon # -ldunegeometry
 
 # UMFPack
 LDFLAGS_UMFPACK = -lumfpack

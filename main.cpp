@@ -9,6 +9,8 @@
 #include "rocsolver-ilu.hpp"
 #include <umfpack.h>
 
+#include <dune/common/timer.hh>
+
 #define VAR_NAME(var) (#var)
 
 double errorInfinityNorm(std::vector<double> vecSol, std::vector<double> vec, bool printError = false, bool printErrorVector = false){
@@ -52,6 +54,10 @@ void printVectorWrapper(const std::vector<T>& vec, const std::string& name) {
 
 int main(int argc, char ** argv)
 {
+
+  std::vector<double> UMFPackTimes(3, 0.0);
+  std::vector<double> RocSPARSETimes(3, 0.0);
+  std::vector<double> RocSOLVERTimes(3, 0.0);
 
   const static int dim = 3;
   const static int dim_wells = 4;
@@ -151,20 +157,31 @@ int main(int argc, char ** argv)
     unsigned int M = dim_wells*Mb;
     void *UMFPACK_Symbolic, *UMFPACK_Numeric;
     std::cout << "########## UMFpack Solver ########## " << std::endl;
+    Dune::Timer UMFPackTimer;
 
+    UMFPackTimer.start();
     umfpack_di_symbolic(M, M, Dcols.data(), Drows.data(), Dvals.data(), &UMFPACK_Symbolic, nullptr, nullptr);
     umfpack_di_numeric(Dcols.data(), Drows.data(), Dvals.data(), UMFPACK_Symbolic, &UMFPACK_Numeric, nullptr, nullptr);
+    UMFPackTimer.stop();
+    UMFPackTimes[0] = UMFPackTimer.lastElapsed();
+
+    UMFPackTimer.start();
     umfpack_di_solve(UMFPACK_A, Dcols.data(), Drows.data(), Dvals.data(), z2.data(), z1.data(), UMFPACK_Numeric, nullptr, nullptr);
+    UMFPackTimer.stop();
+    UMFPackTimes[2] = UMFPackTimer.lastElapsed();
 
     PRINT_VECTOR(z2);
 
-    double errorCPU = errorInfinityNorm(vecSol, z2, true, true);
+    PRINT_VECTOR(UMFPackTimes);
+
+    double errorCPU = errorInfinityNorm(vecSol, z2, true);
     std::cout << std::endl;
 
     umfpack_di_free_symbolic(&UMFPACK_Symbolic);
     umfpack_di_free_numeric(&UMFPACK_Numeric);
 
     std::cout << "########## RocSPARSE Solver ########## " << std::endl;
+    Dune::Timer RocSPARSETimer;
 
     unsigned int nnzs = size(Dvals);
     unsigned int sizeDvals = size(Dvals);
@@ -175,7 +192,10 @@ int main(int argc, char ** argv)
     std::vector<int> Dcols_(sizeDvals);
     std::vector<int> Drows_(sizeDcols);
 
+    RocSPARSETimer.start();
     squareCSCtoCSR(Dvals, Drows, Dcols, Dvals_, Drows_, Dcols_);
+    RocSPARSETimer.stop();
+    RocSOLVERTimes[0] += RocSPARSETimer.lastElapsed();
 
     unsigned int sizeDvals_ = size(Dvals_);
     unsigned int sizeDrows_ = size(Drows_);
@@ -184,29 +204,61 @@ int main(int argc, char ** argv)
     M = size(Drows_)-1 ;
 
     RocsparseMSWContribution rocsparseMswc;
-    rocsparseMswc.initialize(M, nnzs, sizeDvals_, sizeDrows_, sizeDcols_);
-    rocsparseMswc.copyHostToDevice(Dvals_, Drows_, Dcols_, z1);
 
+    RocSPARSETimer.start();
+    rocsparseMswc.initialize(M, nnzs, sizeDvals_, sizeDrows_, sizeDcols_);
+    RocSPARSETimer.stop();
+    RocSOLVERTimes[0] += RocSPARSETimer.lastElapsed();
+
+    RocSPARSETimer.start();
+    rocsparseMswc.copyHostToDevice(Dvals_, Drows_, Dcols_, z1);
+    RocSPARSETimer.stop();
+    RocSOLVERTimes[1] += RocSPARSETimer.lastElapsed();
+
+    RocSPARSETimer.start();
     std::vector<double> z2_rocsparse = rocsparseMswc.solveSytem();
+    RocSPARSETimer.stop();
+    RocSOLVERTimes[2] += RocSPARSETimer.lastElapsed();
+
     PRINT_VECTOR(z2_rocsparse);
 
-    double errorGPURocSPARSE = errorInfinityNorm(vecSol, z2_rocsparse, true, true);
+    PRINT_VECTOR(RocSOLVERTimes);
+
+    double errorGPURocSPARSE = errorInfinityNorm(vecSol, z2_rocsparse, true);
     std::cout << std::endl;
 
     std::cout << "########## RocSOLVER Solver ########## " << std::endl;
+    Dune::Timer RocSOLVERTimer;
 
     int lda = sizeDcols-1;
 
+    RocSOLVERTimer.start();
     double* Dmatrix = squareCSCtoMatrix(Dvals, Drows, Dcols);
+    RocSOLVERTimer.stop();
+    RocSOLVERTimes[0] += RocSOLVERTimer.lastElapsed();
 
     RocsolverMSWContribution rocsolverMswc;
-    rocsolverMswc.initialize(lda, lda);
-    rocsolverMswc.copyHostToDevice(Dmatrix, z1);
 
+    RocSOLVERTimer.start();
+    rocsolverMswc.initialize(lda, lda);
+    RocSOLVERTimer.stop();
+    RocSOLVERTimes[0] += RocSOLVERTimer.lastElapsed();
+
+    RocSOLVERTimer.start();
+    rocsolverMswc.copyHostToDevice(Dmatrix, z1);
+    RocSOLVERTimer.stop();
+    RocSOLVERTimes[1] += RocSOLVERTimer.lastElapsed();
+
+    RocSOLVERTimer.start();
     std::vector<double> z2_rocsolver = rocsolverMswc.solveSytem();
+    RocSOLVERTimer.stop();
+    RocSOLVERTimes[2] += RocSOLVERTimer.lastElapsed();
+
     PRINT_VECTOR(z2_rocsolver);
 
-    double errorGPURocSOLVER = errorInfinityNorm(vecSol, z2_rocsolver, true, true);
+    PRINT_VECTOR(RocSOLVERTimes);
+
+    double errorGPURocSOLVER = errorInfinityNorm(vecSol, z2_rocsolver, true);
     std::cout << std::endl;
 
 
