@@ -35,6 +35,12 @@ double errorInfinityNorm(std::vector<double> vecSol, std::vector<double> vec, bo
   return norm_error;
 }
 
+double sumVector(std::vector<double> vec){
+  double sum = 0.0;
+  for (const auto& val : vec) sum += val;
+  return sum;
+}
+
 template <typename T>
 void printVector(const std::vector<T>& vec, const std::string& name){
   std::cout << name <<": " << size(vec) << std::endl;
@@ -152,11 +158,11 @@ int main(int argc, char ** argv)
         }
     }
 
-    PRINT_VECTOR(z1);
+    //PRINT_VECTOR(z1);
 
     unsigned int M = dim_wells*Mb;
     void *UMFPACK_Symbolic, *UMFPACK_Numeric;
-    std::cout << "########## UMFpack Solver ########## " << std::endl;
+    std::cout << "########## UMFPack Solver ########## " << std::endl;
     Dune::Timer UMFPackTimer;
 
     UMFPackTimer.start();
@@ -170,9 +176,11 @@ int main(int argc, char ** argv)
     UMFPackTimer.stop();
     UMFPackTimes[2] = UMFPackTimer.lastElapsed();
 
-    PRINT_VECTOR(z2);
+    //PRINT_VECTOR(z2);
 
     PRINT_VECTOR(UMFPackTimes);
+
+    std::cout << "Total time: "<<sumVector(UMFPackTimes) << "s" << std::endl;
 
     double errorCPU = errorInfinityNorm(vecSol, z2, true);
     std::cout << std::endl;
@@ -195,7 +203,7 @@ int main(int argc, char ** argv)
     RocSPARSETimer.start();
     squareCSCtoCSR(Dvals, Drows, Dcols, Dvals_, Drows_, Dcols_);
     RocSPARSETimer.stop();
-    RocSOLVERTimes[0] += RocSPARSETimer.lastElapsed();
+    RocSPARSETimes[0] += RocSPARSETimer.lastElapsed();
 
     unsigned int sizeDvals_ = size(Dvals_);
     unsigned int sizeDrows_ = size(Drows_);
@@ -208,21 +216,23 @@ int main(int argc, char ** argv)
     RocSPARSETimer.start();
     rocsparseMswc.initialize(M, nnzs, sizeDvals_, sizeDrows_, sizeDcols_);
     RocSPARSETimer.stop();
-    RocSOLVERTimes[0] += RocSPARSETimer.lastElapsed();
+    RocSPARSETimes[0] += RocSPARSETimer.lastElapsed();
 
     RocSPARSETimer.start();
     rocsparseMswc.copyHostToDevice(Dvals_, Drows_, Dcols_, z1);
     RocSPARSETimer.stop();
-    RocSOLVERTimes[1] += RocSPARSETimer.lastElapsed();
+    RocSPARSETimes[1] += RocSPARSETimer.lastElapsed();
 
     RocSPARSETimer.start();
     std::vector<double> z2_rocsparse = rocsparseMswc.solveSytem();
     RocSPARSETimer.stop();
-    RocSOLVERTimes[2] += RocSPARSETimer.lastElapsed();
+    RocSPARSETimes[2] += RocSPARSETimer.lastElapsed();
 
-    PRINT_VECTOR(z2_rocsparse);
+    //PRINT_VECTOR(z2_rocsparse);
 
-    PRINT_VECTOR(RocSOLVERTimes);
+    PRINT_VECTOR(RocSPARSETimes);
+
+    std::cout << "Total time: "<<sumVector(RocSPARSETimes) << "s" << std::endl;
 
     double errorGPURocSPARSE = errorInfinityNorm(vecSol, z2_rocsparse, true);
     std::cout << std::endl;
@@ -254,9 +264,11 @@ int main(int argc, char ** argv)
     RocSOLVERTimer.stop();
     RocSOLVERTimes[2] += RocSOLVERTimer.lastElapsed();
 
-    PRINT_VECTOR(z2_rocsolver);
+    //PRINT_VECTOR(z2_rocsolver);
 
     PRINT_VECTOR(RocSOLVERTimes);
+
+    std::cout << "Total time: "<<sumVector(RocSOLVERTimes) << "s" << std::endl;
 
     double errorGPURocSOLVER = errorInfinityNorm(vecSol, z2_rocsolver, true);
     std::cout << std::endl;
