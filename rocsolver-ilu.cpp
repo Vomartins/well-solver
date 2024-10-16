@@ -131,15 +131,16 @@ __global__ void spmv_kernel(const Scalar *vals,
 }
 
 template<class Scalar>
-__global__ void residual_blocked_k(const Scalar *vals,
+__global__ void blocksrmvBx_k(const Scalar *vals,
                                    const unsigned int *cols,
                                    const unsigned int *rows,
-                                   const int Nb,
+                                   const unsigned int Nb,
                                    const Scalar *x,
                                    const Scalar *rhs,
                                    Scalar *out,
                                    const unsigned int block_dimM,
-                                   const unsigned int block_dimN)
+                                   const unsigned int block_dimN,
+                                   const double op_sign)
 {
     extern __shared__ Scalar tmp[];
     const unsigned int warpsize = warpSize;
@@ -162,7 +163,7 @@ __global__ void residual_blocked_k(const Scalar *vals,
     // for 3x3 blocks:
     // num_active_threads: 27 (CUDA) vs 63 (ROCM)
     // num_blocks_per_warp: 3 (CUDA) vs  7 (ROCM)
-    int offsetTarget = warpsize == 64 ? 48 : 32;
+    unsigned int offsetTarget = warpsize == 64 ? 32 : 16;
 
     while(target_block_row < Nb){
         unsigned int first_block = rows[target_block_row];
@@ -192,9 +193,156 @@ __global__ void residual_blocked_k(const Scalar *vals,
 
         if(lane < bsM){
             unsigned int row = target_block_row*bsM + lane;
-            out[row] = rhs[row] + tmp[lane];
+            out[row] = rhs[row] + op_sign*tmp[lane];
         }
         target_block_row += num_warps_in_grid;
+    }
+}
+/*
+template<class Scalar>
+__global__ void blocksrmvCtz_k(const Scalar *vals,
+                                   const unsigned int *cols,
+                                   const unsigned int *rows,
+                                   const unsigned int Nb,
+                                   const Scalar *x,
+                                   const Scalar *rhs,
+                                   Scalar *out,
+                                   const unsigned int block_dimM,
+                                   const unsigned int block_dimN,
+                                   const double op_sign,
+                                   const unsigned int resSize,
+                                   const int sizeBvals)
+{
+    extern __shared__ Scalar tmp[];
+    const unsigned int warpsize = warpSize;
+    const unsigned int bsize = blockDim.x;
+    const unsigned int gid = blockDim.x * blockIdx.x + threadIdx.x;
+    const unsigned int idx_b = gid / bsize;
+    const unsigned int idx_t = threadIdx.x;
+    unsigned int idx = idx_b * bsize + idx_t;
+    const unsigned int bsM = block_dimM;
+    const unsigned int bsN = block_dimN;
+    const unsigned int num_active_threads = (warpsize/bsM/bsN)*bsM*bsN;
+    const unsigned int num_blocks_per_warp = warpsize/bsM/bsN;
+    const unsigned int NUM_THREADS = gridDim.x;
+    const unsigned int num_warps_in_grid = NUM_THREADS / warpsize;
+    unsigned int target_block_row = idx / warpsize;
+    const unsigned int lane = idx_t % warpsize;
+    const unsigned int c = lane % bsM;
+    const unsigned int r = lane / bsM;
+    //printf("warp size: %i -- ", warpsize);
+    //printf("NUM_THREADS: %i -- ", NUM_THREADS);
+    //printf("idx: %i -- ", idx);
+    // for 3x3 blocks:
+    // num_active_threads: 27 (CUDA) vs 63 (ROCM)
+    // num_blocks_per_warp: 3 (CUDA) vs  7 (ROCM)
+    unsigned int offsetTarget = warpsize == 64 ? 32 : 16;
+    //printf("num warps: %i -- ", num_warps_in_grid);
+    //printf("target block row: %i -- ", target_block_row);
+    while(target_block_row < Nb){
+        //printf("%i -- ",target_block_row);
+        unsigned int first_block = rows[target_block_row];
+        unsigned int last_block = rows[target_block_row+1];
+        unsigned int block = first_block + lane / (bsM*bsN);
+        Scalar local_out = 0.0;
+
+        if(lane < num_active_threads){
+            for(; block < last_block; block += num_blocks_per_warp){
+                Scalar x_elem = x[cols[block]*bsN + r];
+                Scalar A_elem = vals[block*bsM*bsN+c*bsN+r];
+                //Scalar x_elem = x[target_block_row*bsM + c];
+                //Scalar A_elem = vals[block*bsM*bsN + c*bsN + r];
+                local_out += x_elem * A_elem;
+            }
+        }
+        // do reduction in shared mem
+        tmp[lane] = local_out;
+
+        //for(unsigned int offset = block_dimN; offset <= offsetTarget; offset <<= 1)
+        //{
+        //    if (lane + offset < warpsize)
+        //    {
+        //        tmp[lane] += tmp[lane + offset];
+        //    }
+        //    __syncthreads();
+        //}
+
+        for(unsigned int offset = block_dimN; offset > 0; offset >>= 1){
+          if (lane < offset){
+            tmp[lane] += tmp[lane + offset];
+          }
+          __syncthreads();
+        }
+
+        if(lane < bsM){
+            unsigned int row = target_block_row*bsM + lane;
+            //unsigned int row = cols[block]*bsN + lane;
+            out[row] = rhs[row] + op_sign*tmp[lane];
+        }
+        target_block_row += (warpsize / bsize);//num_warps_in_grid;
+    }
+}
+*/
+
+template<class Scalar>
+__global__ void blocksrmvC_z_k(const Scalar *vals,
+                                 const unsigned int *cols,
+                                 const unsigned int *rows,
+                                 const unsigned int Nb,
+                                 const Scalar *z,
+                                 Scalar *y,
+                                 const unsigned int block_dimM,
+                                 const unsigned int block_dimN)
+{
+    extern __shared__ Scalar tmp[];
+    const unsigned int warpsize = warpSize;
+    const unsigned int bsize = blockDim.x;
+    const unsigned int gid = blockDim.x * blockIdx.x + threadIdx.x;
+    const unsigned int idx_b = gid / bsize;
+    const unsigned int idx_t = threadIdx.x;
+    unsigned int idx = idx_b * bsize + idx_t;
+    const unsigned int bsM = block_dimM;
+    const unsigned int bsN = block_dimN;
+    const unsigned int num_active_threads = (warpsize / bsM / bsN) * bsM * bsN;
+    const unsigned int num_blocks_per_warp = warpsize / bsM / bsN;
+    unsigned int target_block_row = idx / warpsize;
+    const unsigned int lane = idx_t % warpsize;
+    const unsigned int c = lane % bsM;  // Access the row in C
+    const unsigned int r = lane / bsM;   // Access the column in C
+
+    while (target_block_row < Nb) {
+        unsigned int first_block = rows[target_block_row];
+        unsigned int last_block = rows[target_block_row + 1];
+        unsigned int block = first_block + lane / (bsM * bsN);
+        Scalar local_out = 0.0;
+
+        // Compute Cz
+        if (lane < num_active_threads) {
+            for (; block < last_block; block += num_blocks_per_warp) {
+                Scalar z_elem = z[cols[block] * bsN + r];  // Access z using the column of the current block
+                Scalar A_elem = vals[block * bsM * bsN + c * bsN + r];  // Access corresponding element of C
+                local_out += A_elem * z_elem;  // Accumulate
+            }
+        }
+
+        // Store the result in shared memory
+        tmp[lane] = local_out;
+
+        // Perform reduction to sum up the results
+        for (unsigned int offset = block_dimN; offset > 0; offset >>= 1) {
+            if (lane < offset) {
+                tmp[lane] += tmp[lane + offset];
+            }
+            __syncthreads();
+        }
+
+        // Perform the final subtraction and update y
+        if (lane < bsM) {
+            unsigned int row = target_block_row * bsM + lane; // Calculate the row index in y
+            y[row] -= tmp[0];  // Update y: y = y - Cz
+        }
+
+        target_block_row += (warpsize / blockDim.x);
     }
 }
 
@@ -231,39 +379,77 @@ void RocsolverMSWContribution::spmv_k(int n, int threads_per_block, unsigned int
     HIP_CALL(hipDeviceSynchronize()); // Synchronize to ensure completion
 }
 
-void RocsolverMSWContribution::residual_blocked(double* vals, unsigned int* cols, unsigned int* rows, double* x, double* rhs, double* out, int Nb, unsigned int block_dimM, unsigned int block_dimN)
+void RocsolverMSWContribution::blockrsmvBx(double* vals, unsigned int* cols, unsigned int* rows, double* x, double* rhs, double* out, int Nb, unsigned int block_dimM, unsigned int block_dimN, const double op_sign)
 {
   unsigned int blockDim = 32;
   unsigned int number_wg = std::ceil(Nb/blockDim);
   unsigned int num_work_groups = number_wg == 0 ? 1 : number_wg;
-  std::cout << num_work_groups << std::endl;
   unsigned int gridDim = num_work_groups*blockDim;
-  unsigned int shared_mem_size = blockDim*sizeof(double);
+  //unsigned int gridDim = (Nb + blockDim -1) / blockDim;
+  unsigned int shared_mem_size = blockDim*sizeof(double)*block_dimM*block_dimN;
 
-  residual_blocked_k<<<dim3(gridDim), dim3(blockDim), shared_mem_size>>>(vals, cols, rows, Nb, x, rhs, out, block_dimM, block_dimN);
+  blocksrmvBx_k<<<dim3(gridDim), dim3(blockDim), shared_mem_size>>>(vals, cols, rows, Nb, x, rhs, out, block_dimM, block_dimN, op_sign);
 
   HIP_CALL(hipGetLastError()); // Check for errors
   HIP_CALL(hipDeviceSynchronize()); // Synchronize to ensure completion
 }
+/*
+void RocsolverMSWContribution::blocksrmvCtz(double* vals, unsigned int* cols, unsigned int* rows, double* x, double* rhs, double* out, unsigned int Nb, unsigned int block_dimM, unsigned int block_dimN, const double op_sign, const unsigned int resSize, const int sizeBvals)
+{
+  unsigned int blockDim = 32;
+  unsigned int number_wg = std::ceil(Nb/blockDim);
+  unsigned int num_work_groups = number_wg == 0 ? 1 : number_wg;
+  //unsigned int gridDim = num_work_groups*blockDim;
+  unsigned int gridDim = (Nb + blockDim -1) / blockDim;
+  std::cout << "gridDim: " << gridDim << std::endl;
+  unsigned int shared_mem_size = blockDim*sizeof(double)*block_dimM*block_dimN;
 
+  blocksrmvCtz_k<<<dim3(gridDim), dim3(blockDim), shared_mem_size>>>(vals, cols, rows, Nb, x, rhs, out, block_dimM, block_dimN, op_sign, resSize, sizeBvals);
 
+  HIP_CALL(hipGetLastError()); // Check for errors
+  HIP_CALL(hipDeviceSynchronize()); // Synchronize to ensure completion
+}*/
+
+void RocsolverMSWContribution::blocksrmvC_z(double* vals, unsigned int* cols, unsigned int* rows, double* z, double* y, unsigned int Nb, unsigned int block_dimM, unsigned int block_dimN)
+{
+    unsigned int blockDim = 32;  // Set the block size
+    unsigned int gridDim = (Nb + blockDim - 1) / blockDim;  // Calculate grid size
+    unsigned int shared_mem_size = blockDim * sizeof(double) * block_dimM * block_dimN;  // Allocate shared memory size
+
+    blocksrmvC_z_k<<<gridDim, blockDim, shared_mem_size>>>(vals, cols, rows, Nb, z, y, block_dimM, block_dimN);
+
+    HIP_CALL(hipGetLastError()); // Check for errors
+    // HIP_CALL(hipDeviceSynchronize()); // Uncomment for synchronization if needed
+}
+
+void checkHIPAlloc(void* ptr) {
+    if (ptr == nullptr) {
+        std::cerr << "HIP malloc failed." << std::endl;
+        exit(1);
+    }
+}
 
 RocsolverMSWContribution::~RocsolverMSWContribution()
 {
     HIP_CALL(hipDeviceSynchronize());
+
     HIP_CALL(hipFree(ipiv));
     HIP_CALL(hipFree(d_Dmatrix_hip));
+    HIP_CALL(hipFree(d_Cvals_hip));
     HIP_CALL(hipFree(d_Bvals_hip));
     HIP_CALL(hipFree(d_Bcols_hip));
     HIP_CALL(hipFree(d_Brows_hip));
     HIP_CALL(hipFree(x_hip));
+    HIP_CALL(hipFree(y_hip));
     HIP_CALL(hipFree(z_hip));
+    HIP_CALL(hipFree(sol_hip));
     HIP_CALL(hipFree(rhs_hip));
     HIP_CALL(hipFree(info));
+
     ROCSOLVER_CALL(rocblas_destroy_handle(handle));
 }
 
-void RocsolverMSWContribution::initialize(rocblas_int M, rocblas_int N, int sizeBvals, int sizeBcols, int sizeBrows, int resSize)
+void RocsolverMSWContribution::initialize(rocblas_int M, rocblas_int N, int sizeBvals, int sizeBcols, int sizeBrows, int resSize, int CzSize)
 {
     this->M = M;
     this->N = N;
@@ -273,32 +459,54 @@ void RocsolverMSWContribution::initialize(rocblas_int M, rocblas_int N, int size
     this->sizeBcols = sizeBcols;
     this->sizeBrows = sizeBrows;
     this->resSize = resSize;
+    this->CzSize = CzSize;
 
     int ipivDim = M > N ? N : M;
     HIP_CALL(hipMalloc(&ipiv, sizeof(rocblas_int)*ipivDim));
+    checkHIPAlloc(ipiv);
     HIP_CALL(hipMalloc(&d_Dmatrix_hip, sizeof(double)*M*N));
+    checkHIPAlloc(d_Dmatrix_hip);
+    HIP_CALL(hipMalloc(&d_Cvals_hip, sizeof(double)*sizeBvals));
+    checkHIPAlloc(d_Cvals_hip);
     HIP_CALL(hipMalloc(&d_Bvals_hip, sizeof(double)*sizeBvals));
+    checkHIPAlloc(d_Bvals_hip);
     HIP_CALL(hipMalloc(&d_Bcols_hip, sizeof(unsigned int)*sizeBcols));
+    checkHIPAlloc(d_Bcols_hip);
     HIP_CALL(hipMalloc(&d_Brows_hip, sizeof(unsigned int)*sizeBrows));
+    checkHIPAlloc(d_Brows_hip);
     HIP_CALL(hipMalloc(&x_hip, sizeof(double)*resSize));
+    checkHIPAlloc(x_hip);
+    HIP_CALL(hipMalloc(&y_hip, sizeof(double)*CzSize));
+    checkHIPAlloc(y_hip);
+    HIP_CALL(hipMalloc(&sol_hip, sizeof(double)*CzSize));
+    checkHIPAlloc(sol_hip);
     HIP_CALL(hipMalloc(&z_hip, sizeof(double)*ldb*this->Nrhs));
+    checkHIPAlloc(z_hip);
     HIP_CALL(hipMalloc(&rhs_hip, sizeof(double)*ldb*this->Nrhs));
+    checkHIPAlloc(rhs_hip);
     HIP_CALL(hipMalloc(&info, sizeof(rocblas_int)));
+    checkHIPAlloc(info);
+
+    ROCSOLVER_CALL(rocblas_create_handle(&handle));
 }
 
 void RocsolverMSWContribution::copyHostToDevice(double *Dmatrix,
+                                                std::vector<double> Cvals,
                                                 std::vector<double> Bvals,
                                                 std::vector<unsigned int> Brows,
                                                 std::vector<unsigned int> Bcols,
-                                                std::vector<double> x)
+                                                std::vector<double> x,
+                                                std::vector<double> y)
 {
     std::vector<double> rhs(ldb*Nrhs, 0.0);
 
     HIP_CALL(hipMemcpy(d_Dmatrix_hip, Dmatrix, M*N*sizeof(double), hipMemcpyHostToDevice));
+    HIP_CALL(hipMemcpy(d_Cvals_hip, Bvals.data(), sizeBvals*sizeof(double), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(d_Bvals_hip, Bvals.data(), sizeBvals*sizeof(double), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(d_Bcols_hip, Bcols.data(), sizeBcols*sizeof(unsigned int), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(d_Brows_hip, Brows.data(), sizeBrows*sizeof(unsigned int), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(x_hip, x.data(), resSize*sizeof(double), hipMemcpyHostToDevice));
+    HIP_CALL(hipMemcpy(y_hip, y.data(), CzSize*sizeof(double), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(rhs_hip, rhs.data(), ldb*Nrhs*sizeof(double), hipMemcpyHostToDevice));
 }
 
@@ -332,17 +540,30 @@ std::vector<double> RocsolverMSWContribution::apply()
   //scalar_csc(sizeBrows-1, 32, d_Brows_hip, d_Bcols_hip, d_Bvals_hip, x_hip, z_hip, 1.0, 0.0);
   //spmv_k(sizeBrows-1, 32, d_Brows_hip, d_Bcols_hip, d_Bvals_hip, x_hip, z_hip);
 
-  residual_blocked(d_Bvals_hip, d_Bcols_hip, d_Brows_hip, x_hip, rhs_hip, z_hip, sizeBrows-1, 4, 3);
+  blockrsmvBx(d_Bvals_hip, d_Bcols_hip, d_Brows_hip, x_hip, rhs_hip, z_hip, sizeBrows-1, 4, 3, +1.0);
 
-  z1.resize(ldb*Nrhs);
-  HIP_CALL(hipMemcpy(z1.data(), z_hip, ldb*Nrhs*sizeof(double),hipMemcpyDeviceToHost));
+  //z1.resize(ldb*Nrhs);
+  //HIP_CALL(hipMemcpy(z1.data(), z_hip, ldb*Nrhs*sizeof(double),hipMemcpyDeviceToHost));
 
-  ROCSOLVER_CALL(rocblas_create_handle(&handle));
+  std::vector<double> vec_return = solveSytem();
+
+  //blocksrmvCtz(d_Cvals_hip, d_Bcols_hip, d_Brows_hip, z_hip, y_hip, sol_hip, sizeBrows-1, 4, 3, -1.0, CzSize, sizeBvals);
+  //HIP_CALL(hipDeviceSynchronize());
+  blocksrmvC_z(d_Cvals_hip, d_Bcols_hip, d_Brows_hip, z_hip, y_hip, sizeBrows - 1, 4, 3);
+
+  vecY.resize(resSize);
+  HIP_CALL(hipMemcpy(vecY.data(), y_hip, resSize*sizeof(double),hipMemcpyDeviceToHost));
 
   //return z1;
 
-  return solveSytem();
+  return vec_return;
 }
+
+std::vector<double> RocsolverMSWContribution::vectorCtz()
+{
+  return vecY;
+}
+
 
 
 

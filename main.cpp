@@ -254,11 +254,26 @@ int main(int argc, char ** argv)
     std::cout << "########## RocSOLVER Solver ########## " << std::endl;
     Dune::Timer RocSOLVERTimer;
 
+    std::vector<double> vecy = loadResVector("data/"+reservoir+"/vector-y.bin");
+    std::cout << size(vecy) << std::endl;
+    std::vector<double> vecY = loadResVector("data/"+reservoir+"/vector-Y.bin");
+    std::cout << size(vecY) << std::endl;
+
     int lda = sizeDcols-1;
     int sizeBvals = size(Bvals);
     int sizeBrows = size(Brows);
     int sizeBcols = size(Bcols);
     int resSize = size(vecRes);
+    int CzSize = size(vecy);
+    std::cout << resSize << std::endl;
+    std::cout << lda << std::endl;
+    std::cout << sizeDvals << std::endl;
+    std::cout << sizeDcols << std::endl;
+    std::cout << sizeDrows << std::endl;
+
+    //PRINT_VECTOR(Cvals);
+    //PRINT_VECTOR(Bcols);
+    //PRINT_VECTOR(Brows);
 
     RocSOLVERTimer.start();
     double* Dmatrix = squareCSCtoMatrix(Dvals, Drows, Dcols);
@@ -268,12 +283,12 @@ int main(int argc, char ** argv)
     RocsolverMSWContribution rocsolverMswc;
 
     RocSOLVERTimer.start();
-    rocsolverMswc.initialize(lda, lda, sizeBvals, sizeBcols, sizeBrows, resSize);
+    rocsolverMswc.initialize(lda, lda, sizeBvals, sizeBcols, sizeBrows, resSize, CzSize);
     RocSOLVERTimer.stop();
     RocSOLVERTimes[0] += RocSOLVERTimer.lastElapsed();
 
     RocSOLVERTimer.start();
-    rocsolverMswc.copyHostToDevice(Dmatrix, Bvals, Brows, Bcols, vecRes);
+    rocsolverMswc.copyHostToDevice(Dmatrix, Cvals, Bvals, Brows, Bcols, vecRes, vecy);
     RocSOLVERTimer.stop();
     RocSOLVERTimes[1] += RocSOLVERTimer.lastElapsed();
 
@@ -282,7 +297,8 @@ int main(int argc, char ** argv)
     RocSOLVERTimer.stop();
     RocSOLVERTimes[2] += RocSOLVERTimer.lastElapsed();
 
-    //PRINT_VECTOR(z2_rocsolver);
+    PRINT_VECTOR(z2_rocsolver);
+    PRINT_VECTOR(vecSol);
 
     PRINT_VECTOR(RocSOLVERTimes);
 
@@ -290,12 +306,16 @@ int main(int argc, char ** argv)
 
     std::cout << "Total time: "<< RocSolverTotalTime << "s" << std::endl;
 
-    double errorGPURocSOLVER = errorInfinityNorm(vecSol, z2_rocsolver, true, true);
+    double errorGPURocSOLVER = errorInfinityNorm(vecSol, z2_rocsolver, true);
     std::cout << std::endl;
 
     std::cout << "########## Speed Factors ########## " << std::endl;
     std::cout << "RocSPARSE: " << (RocSparseTotalTime+cpuTime)/(UMFPackTotalTime+cpuTime) << std::endl;
     std::cout << "RocSOLVER: " << RocSolverTotalTime/(UMFPackTotalTime+cpuTime) << std::endl;
+    std::cout << std::endl;
 
+    std::vector<double> vecY_hip = rocsolverMswc.vectorCtz();
 
+    double errorVecY = errorInfinityNorm(vecY, vecY_hip, true);
+    std::cout << std::endl;
 }

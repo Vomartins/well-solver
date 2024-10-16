@@ -23,9 +23,11 @@ private:
   int sizeBcols;
   int sizeBrows;
   unsigned int resSize;
+  unsigned int CzSize;
   rocblas_int *info;
   rocblas_int *ipiv;
   double *d_Dmatrix_hip;
+  double *d_Cvals_hip;
   double *d_Bvals_hip;
   unsigned int *d_Brows_hip;
   unsigned int *d_Bcols_hip;
@@ -36,18 +38,29 @@ private:
   rocblas_operation operation = rocblas_operation_none;
   double *x_hip;
   double *z_hip;
+  double *y_hip;
+  double *sol_hip;
   double *rhs_hip;
   std::vector<double> vecSol;
   std::vector<double> z1;
+  std::vector<double> vecY;
 
 public:
   ~RocsolverMSWContribution();
-  void initialize(rocblas_int M, rocblas_int N, int sizeBvals, int sizeBcols, int sizeBrows, int resSize);
+  void initialize(rocblas_int M,
+                  rocblas_int N,
+                  int sizeBvals,
+                  int sizeBcols,
+                  int sizeBrows,
+                  int resSize,
+                  int CzSize);
   void copyHostToDevice(double *Dmatrix,
+                        std::vector<double> Cvals,
                         std::vector<double> Bvals,
                         std::vector<unsigned int> Brows,
                         std::vector<unsigned int> Bcols,
-                        std::vector<double> x);
+                        std::vector<double> x,
+                        std::vector<double> y);
   std::vector<double> solveSytem();
   void scalar_csr(int m,
                 int threads_per_block,
@@ -74,7 +87,7 @@ public:
               double* vals,
               double* x,
               double* y);
-  void residual_blocked(double* vals,
+  void blockrsmvBx(double* vals,
                         unsigned int* cols,
                         unsigned int* rows,
                         double* x,
@@ -82,8 +95,25 @@ public:
                         double* out,
                         int Nb,
                         unsigned int block_dimM,
-                        unsigned int block_dimN);
+                        unsigned int block_dimN,
+                        const double op_sign);
+  /*void blocksrmvCtz(double* vals,
+                    unsigned int* cols,
+                    unsigned int* rows,
+                    double* x,
+                    double* rhs,
+                    double* out,
+                    unsigned int Nb,
+                    unsigned int block_dimM,
+                    unsigned int block_dimN,
+                    const double op_sign,
+                    const unsigned int resSize,
+                    const int sizeBvals);*/
+  void blocksrmvC_z(double* vals, unsigned int* cols, unsigned int* rows, double* z, double* y, unsigned int Nb, unsigned int block_dimM, unsigned int block_dimN);
+
   std::vector<double> apply();
+
+  std::vector<double> vectorCtz();
 };
 
 #endif
