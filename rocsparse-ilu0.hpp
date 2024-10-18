@@ -38,6 +38,7 @@ public:
   void copyHostToDevice(std::vector<double> Dvals, std::vector<int> Drows, std::vector<int> Dcols, std::vector<double> z1);
   bool analyseMatrix();
   void ilu0Solver();
+  void freeRocSPARSE();
   std::vector<double> solveSytem();
 };
 

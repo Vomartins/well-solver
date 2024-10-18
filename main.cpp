@@ -15,24 +15,51 @@
 
 double errorInfinityNorm(std::vector<double> vecSol, std::vector<double> vec, bool printError = false, bool printErrorVector = false){
   std::vector<double> error(size(vecSol), -1.0);
-
-  for (int i=0; i<size(vec); i++){
-    error[i]= fabs(vec[i]-vecSol[i]);
-  }
-
-  double norm_error = *std::max_element(error.begin(),error.end());
-
-  if (printErrorVector) {
-        std::cout << "Error vector: [ ";
-        for (const auto& e : error) {
-            std::cout << e << " ";
-        }
-        std::cout << "]" << std::endl;
+  if (size(vecSol) == size(vec)){
+    for (int i=0; i<size(vec); i++){
+      error[i]= fabs(vec[i]-vecSol[i]);
     }
 
-  if (printError) std::cout << "Inifinity norm of error: " << norm_error << std::endl;
+    double norm_error = *std::max_element(error.begin(),error.end());
 
-  return norm_error;
+    if (printErrorVector) {
+          std::cout << "Error vector: [ ";
+          for (const auto& e : error) {
+              std::cout << e << " ";
+          }
+          std::cout << "]" << std::endl;
+      }
+
+    if (printError) std::cout << "Inifinity norm of error: " << norm_error << std::endl;
+
+    return norm_error;
+  } else { return -1.0;}
+}
+
+void errorInfinityNormDebug(std::vector<double> vecSol, std::vector<double> vec, double epsilon, bool printError = false, bool printErrorVector = false){
+  std::vector<double> error(size(vecSol), -1.0);
+  if (size(vecSol) == size(vec)){
+    for (int i=0; i<size(vec); i++){
+      error[i]= fabs(vec[i]-vecSol[i]);
+      if (error[i] > epsilon){
+        std::cout << "Element " << i << " has an error of " << error[i] << std::endl;
+      }
+    }
+
+    double norm_error = *std::max_element(error.begin(),error.end());
+
+    if (printErrorVector) {
+          std::cout << "Error vector: [ ";
+          for (const auto& e : error) {
+              std::cout << e << " ";
+          }
+          std::cout << "]" << std::endl;
+      }
+
+    if (printError) std::cout << "Inifinity norm of error: " << norm_error << std::endl;
+
+
+  }
 }
 
 double sumVector(std::vector<double> vec){
@@ -78,6 +105,7 @@ int main(int argc, char ** argv)
     std::cout << "No reservoir provided. Please enter one option as command-line argument (norne, msw)." << std::endl;
     return 1;
   }
+  std::cout << std::endl;
 
 /*
   WellMatrices wellMatrices;
@@ -125,7 +153,7 @@ int main(int argc, char ** argv)
   //std::cout << wellMatrices.duneC.N() << std::endl;
   //std::cout << wellMatrices.duneC.M() << std::endl;
 */
-  std::cout << "########## std::vector ##########" << std::endl;
+  //std::cout << "########## std::vector ##########" << std::endl;
 
   std::vector<double> Dvals, Bvals, Cvals;
   std::vector<int> Dcols, Drows;
@@ -137,10 +165,10 @@ int main(int argc, char ** argv)
   std::vector<double> vecRes = loadResVector("data/"+reservoir+"/vector-Res.bin");
   std::vector<double> vecSol = loadResVector("data/"+reservoir+"/vector-Sol.bin");
 
-  std::cout << size(vecRes) << std::endl;
-  PRINT_VECTOR(Bvals);
-  PRINT_VECTOR(Bcols);
-  PRINT_VECTOR(Brows);
+  //std::cout << size(vecRes) << std::endl;
+  //PRINT_VECTOR(Bvals);
+  //PRINT_VECTOR(Bcols);
+  //PRINT_VECTOR(Brows);
 
   unsigned int Mb = size(Brows)-1 ;
   unsigned int length = dim_wells*Mb;
@@ -166,9 +194,6 @@ int main(int argc, char ** argv)
     }
     cpuMatrix.stop();
     double cpuTime = cpuMatrix.lastElapsed();
-
-    std::cout << size(z1) << std::endl;
-    //PRINT_VECTOR(z1);
 
     unsigned int M = dim_wells*Mb;
     void *UMFPACK_Symbolic, *UMFPACK_Numeric;
@@ -199,15 +224,15 @@ int main(int argc, char ** argv)
 
     umfpack_di_free_symbolic(&UMFPACK_Symbolic);
     umfpack_di_free_numeric(&UMFPACK_Numeric);
-
+/*
     std::cout << "########## RocSPARSE Solver ########## " << std::endl;
     Dune::Timer RocSPARSETimer;
-
+*/
     unsigned int nnzs = size(Dvals);
     unsigned int sizeDvals = size(Dvals);
     unsigned int sizeDcols = size(Dcols);
     unsigned int sizeDrows = size(Drows);
-
+/*
     std::vector<double> Dvals_(sizeDvals);
     std::vector<int> Dcols_(sizeDvals);
     std::vector<int> Drows_(sizeDcols);
@@ -250,14 +275,12 @@ int main(int argc, char ** argv)
 
     double errorGPURocSPARSE = errorInfinityNorm(vecSol, z2_rocsparse, true);
     std::cout << std::endl;
-
+*/
     std::cout << "########## RocSOLVER Solver ########## " << std::endl;
     Dune::Timer RocSOLVERTimer;
 
     std::vector<double> vecy = loadResVector("data/"+reservoir+"/vector-y.bin");
-    std::cout << size(vecy) << std::endl;
-    std::vector<double> vecY = loadResVector("data/"+reservoir+"/vector-Y.bin");
-    std::cout << size(vecY) << std::endl;
+    //std::vector<double> vecY = loadResVector("data/"+reservoir+"/vector-Y.bin");
 
     int lda = sizeDcols-1;
     int sizeBvals = size(Bvals);
@@ -265,15 +288,6 @@ int main(int argc, char ** argv)
     int sizeBcols = size(Bcols);
     int resSize = size(vecRes);
     int CzSize = size(vecy);
-    std::cout << resSize << std::endl;
-    std::cout << lda << std::endl;
-    std::cout << sizeDvals << std::endl;
-    std::cout << sizeDcols << std::endl;
-    std::cout << sizeDrows << std::endl;
-
-    //PRINT_VECTOR(Cvals);
-    //PRINT_VECTOR(Bcols);
-    //PRINT_VECTOR(Brows);
 
     RocSOLVERTimer.start();
     double* Dmatrix = squareCSCtoMatrix(Dvals, Drows, Dcols);
@@ -285,7 +299,7 @@ int main(int argc, char ** argv)
     RocSOLVERTimer.start();
     rocsolverMswc.initialize(lda, lda, sizeBvals, sizeBcols, sizeBrows, resSize, CzSize);
     RocSOLVERTimer.stop();
-    RocSOLVERTimes[0] += RocSOLVERTimer.lastElapsed();
+    RocSOLVERTimes[1] += RocSOLVERTimer.lastElapsed();
 
     RocSOLVERTimer.start();
     rocsolverMswc.copyHostToDevice(Dmatrix, Cvals, Bvals, Brows, Bcols, vecRes, vecy);
@@ -297,25 +311,49 @@ int main(int argc, char ** argv)
     RocSOLVERTimer.stop();
     RocSOLVERTimes[2] += RocSOLVERTimer.lastElapsed();
 
-    PRINT_VECTOR(z2_rocsolver);
-    PRINT_VECTOR(vecSol);
-
     PRINT_VECTOR(RocSOLVERTimes);
 
-    double RocSolverTotalTime = sumVector(RocSOLVERTimes);
+    double RocSolverTotalTime = (RocSOLVERTimes[0]+RocSOLVERTimes[2]);
 
     std::cout << "Total time: "<< RocSolverTotalTime << "s" << std::endl;
 
     double errorGPURocSOLVER = errorInfinityNorm(vecSol, z2_rocsolver, true);
     std::cout << std::endl;
 
-    std::cout << "########## Speed Factors ########## " << std::endl;
-    std::cout << "RocSPARSE: " << (RocSparseTotalTime+cpuTime)/(UMFPackTotalTime+cpuTime) << std::endl;
-    std::cout << "RocSOLVER: " << RocSolverTotalTime/(UMFPackTotalTime+cpuTime) << std::endl;
+    std::vector<double> vecY_hip = rocsolverMswc.vectorCtz();
+    int row = 0;
+    cpuMatrix.start();
+    // y -= (C^T * z2)
+    // y -= (C^T * (D^-1 * (B * x)))
+    for (unsigned int blockrow = 0; blockrow < Mb; ++blockrow) {
+        // for every block in the row
+        for (unsigned int blockID = Brows[blockrow]; blockID < Brows[blockrow + 1]; ++blockID) {
+            unsigned int colIdx = Bcols[blockID];
+            for (unsigned int j = 0; j < dim; ++j) {
+                double temp = 0.0;
+                for (unsigned int k = 0; k < dim_wells; ++k) {
+                    temp += Cvals[blockID * dim * dim_wells + j + k * dim] * z2[blockrow * dim_wells + k];
+                }
+                //printf("block: %i, col: %i\n", blockID, colIdx);
+                //printf("y_elem: %i\n", colIdx * dim + j);
+                row = colIdx * dim + j;
+                vecy[row] -= temp;
+                printf("Row: %u, y(row): %.10f\n", row, vecy[row]);
+            }
+        }
+    }
+    std::cout << std::endl;
+    cpuMatrix.stop();
+    cpuTime += cpuMatrix.lastElapsed();
+
+    errorInfinityNormDebug(vecY_hip, vecy, 1e-20, true);
     std::cout << std::endl;
 
-    std::vector<double> vecY_hip = rocsolverMswc.vectorCtz();
+    errorInfinityNormDebug(vecY_hip, vecy, 1e-8, true);
+    std::cout << std::endl;
 
-    double errorVecY = errorInfinityNorm(vecY, vecY_hip, true);
+    std::cout << "########## Speed Factors ########## " << std::endl;
+    //std::cout << "RocSPARSE: " << (RocSparseTotalTime+cpuTime)/(UMFPackTotalTime+cpuTime) << std::endl;
+    std::cout << "RocSOLVER: " << RocSolverTotalTime/(UMFPackTotalTime+cpuTime) << std::endl;
     std::cout << std::endl;
 }

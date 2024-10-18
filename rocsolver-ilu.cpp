@@ -289,6 +289,7 @@ __global__ void blocksrmvC_z_k(const Scalar *vals,
                                  const unsigned int *cols,
                                  const unsigned int *rows,
                                  const unsigned int Nb,
+                                 const unsigned int Nbr,
                                  const Scalar *z,
                                  Scalar *y,
                                  const unsigned int block_dimM,
@@ -310,7 +311,9 @@ __global__ void blocksrmvC_z_k(const Scalar *vals,
     const unsigned int c = lane % bsM;  // Access the row in C
     const unsigned int r = lane / bsM;   // Access the column in C
 
-    while (target_block_row < Nb) {
+    //unsigned int offsetTarget = warpsize == 64 ? 32 : 16;
+
+    while (target_block_row < Nbr) {
         unsigned int first_block = rows[target_block_row];
         unsigned int last_block = rows[target_block_row + 1];
         unsigned int block = first_block + lane / (bsM * bsN);
@@ -319,12 +322,17 @@ __global__ void blocksrmvC_z_k(const Scalar *vals,
         // Compute Cz
         if (lane < num_active_threads) {
             for (; block < last_block; block += num_blocks_per_warp) {
-                Scalar z_elem = z[cols[block] * bsN + r];  // Access z using the column of the current block
-                Scalar A_elem = vals[block * bsM * bsN + c * bsN + r];  // Access corresponding element of C
-                local_out += A_elem * z_elem;  // Accumulate
+                Scalar z_elem = z[target_block_row*bsN + r];  // Access z using the column of the current block
+                Scalar A_elem = vals[block * bsM * bsN + c + r*bsM]; // Access corresponding element of C
+                local_out += A_elem * z_elem; // Accumulate
+                unsigned int row = cols[block] * bsM + c;
+                y[row] -= A_elem * z_elem;
+                printf("Row: %u, y(row): %.10f\n", row, y[row]);
+                //printf("Block %u, A_elem: %f(%i), z_elem: %f(%i)\n", block, A_elem, block * bsM * bsN + c + r*bsM, z_elem, target_block_row*bsN + r);
             }
         }
 
+/*
         // Store the result in shared memory
         tmp[lane] = local_out;
 
@@ -336,13 +344,25 @@ __global__ void blocksrmvC_z_k(const Scalar *vals,
             __syncthreads();
         }
 
+        // for(unsigned int offset = bsN; offset <= offsetTarget; offset <<= 1)
+        // {
+        //    if (lane + offset < warpsize)
+        //    {
+        //        tmp[lane] += tmp[lane + offset];
+        //    }
+        //    __syncthreads();
+        // }
+
+
         // Perform the final subtraction and update y
-        if (lane < bsM) {
-            unsigned int row = target_block_row * bsM + lane; // Calculate the row index in y
+        if (block < Nb) {
+            unsigned int row = cols[block] * bsM + c; // Calculate the row index in y
+            //printf("block %u, col %u, row %i, target_block_row: %i\n", block ,cols[block], row, target_block_row);
             y[row] -= tmp[0];  // Update y: y = y - Cz
         }
-
+*/
         target_block_row += (warpsize / blockDim.x);
+
     }
 }
 
@@ -379,7 +399,7 @@ void RocsolverMSWContribution::spmv_k(int n, int threads_per_block, unsigned int
     HIP_CALL(hipDeviceSynchronize()); // Synchronize to ensure completion
 }
 
-void RocsolverMSWContribution::blockrsmvBx(double* vals, unsigned int* cols, unsigned int* rows, double* x, double* rhs, double* out, int Nb, unsigned int block_dimM, unsigned int block_dimN, const double op_sign)
+void RocsolverMSWContribution::blockrsmvBx(double* vals, unsigned int* cols, unsigned int* rows, double* x, double* rhs, double* out, unsigned int Nb, unsigned int block_dimM, unsigned int block_dimN, const double op_sign)
 {
   unsigned int blockDim = 32;
   unsigned int number_wg = std::ceil(Nb/blockDim);
@@ -410,13 +430,16 @@ void RocsolverMSWContribution::blocksrmvCtz(double* vals, unsigned int* cols, un
   HIP_CALL(hipDeviceSynchronize()); // Synchronize to ensure completion
 }*/
 
-void RocsolverMSWContribution::blocksrmvC_z(double* vals, unsigned int* cols, unsigned int* rows, double* z, double* y, unsigned int Nb, unsigned int block_dimM, unsigned int block_dimN)
+void RocsolverMSWContribution::blocksrmvC_z(double* vals, unsigned int* cols, unsigned int* rows, double* z, double* y, unsigned int Nb, unsigned int Nbr, unsigned int block_dimM, unsigned int block_dimN)
 {
-    unsigned int blockDim = 32;  // Set the block size
+    unsigned int blockDim = 32; // Set the block size
+    // unsigned int number_wg = std::ceil(Nb/blockDim);
+    // unsigned int num_work_groups = number_wg == 0 ? 1 : number_wg;
+    // unsigned int gridDim = num_work_groups*blockDim;
     unsigned int gridDim = (Nb + blockDim - 1) / blockDim;  // Calculate grid size
     unsigned int shared_mem_size = blockDim * sizeof(double) * block_dimM * block_dimN;  // Allocate shared memory size
 
-    blocksrmvC_z_k<<<gridDim, blockDim, shared_mem_size>>>(vals, cols, rows, Nb, z, y, block_dimM, block_dimN);
+    blocksrmvC_z_k<<<gridDim, blockDim, shared_mem_size>>>(vals, cols, rows, Nb, Nbr, z, y, block_dimM, block_dimN);
 
     HIP_CALL(hipGetLastError()); // Check for errors
     // HIP_CALL(hipDeviceSynchronize()); // Uncomment for synchronization if needed
@@ -431,22 +454,22 @@ void checkHIPAlloc(void* ptr) {
 
 RocsolverMSWContribution::~RocsolverMSWContribution()
 {
-    HIP_CALL(hipDeviceSynchronize());
-
-    HIP_CALL(hipFree(ipiv));
-    HIP_CALL(hipFree(d_Dmatrix_hip));
-    HIP_CALL(hipFree(d_Cvals_hip));
-    HIP_CALL(hipFree(d_Bvals_hip));
-    HIP_CALL(hipFree(d_Bcols_hip));
-    HIP_CALL(hipFree(d_Brows_hip));
-    HIP_CALL(hipFree(x_hip));
-    HIP_CALL(hipFree(y_hip));
-    HIP_CALL(hipFree(z_hip));
-    HIP_CALL(hipFree(sol_hip));
-    HIP_CALL(hipFree(rhs_hip));
-    HIP_CALL(hipFree(info));
-
-    ROCSOLVER_CALL(rocblas_destroy_handle(handle));
+    // HIP_CALL(hipDeviceSynchronize());
+    //
+    // HIP_CALL(hipFree(ipiv));
+    // HIP_CALL(hipFree(d_Dmatrix_hip));
+    // HIP_CALL(hipFree(d_Cvals_hip));
+    // HIP_CALL(hipFree(d_Bvals_hip));
+    // HIP_CALL(hipFree(d_Bcols_hip));
+    // HIP_CALL(hipFree(d_Brows_hip));
+    // HIP_CALL(hipFree(x_hip));
+    // HIP_CALL(hipFree(y_hip));
+    // HIP_CALL(hipFree(z_hip));
+    // HIP_CALL(hipFree(sol_hip));
+    // HIP_CALL(hipFree(rhs_hip));
+    // HIP_CALL(hipFree(info));
+    //
+    // ROCSOLVER_CALL(rocblas_destroy_handle(handle));
 }
 
 void RocsolverMSWContribution::initialize(rocblas_int M, rocblas_int N, int sizeBvals, int sizeBcols, int sizeBrows, int resSize, int CzSize)
@@ -501,13 +524,33 @@ void RocsolverMSWContribution::copyHostToDevice(double *Dmatrix,
     std::vector<double> rhs(ldb*Nrhs, 0.0);
 
     HIP_CALL(hipMemcpy(d_Dmatrix_hip, Dmatrix, M*N*sizeof(double), hipMemcpyHostToDevice));
-    HIP_CALL(hipMemcpy(d_Cvals_hip, Bvals.data(), sizeBvals*sizeof(double), hipMemcpyHostToDevice));
+    HIP_CALL(hipMemcpy(d_Cvals_hip, Cvals.data(), sizeBvals*sizeof(double), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(d_Bvals_hip, Bvals.data(), sizeBvals*sizeof(double), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(d_Bcols_hip, Bcols.data(), sizeBcols*sizeof(unsigned int), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(d_Brows_hip, Brows.data(), sizeBrows*sizeof(unsigned int), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(x_hip, x.data(), resSize*sizeof(double), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(y_hip, y.data(), CzSize*sizeof(double), hipMemcpyHostToDevice));
     HIP_CALL(hipMemcpy(rhs_hip, rhs.data(), ldb*Nrhs*sizeof(double), hipMemcpyHostToDevice));
+}
+
+void RocsolverMSWContribution::freeRocSOLVER()
+{
+   HIP_CALL(hipDeviceSynchronize());
+
+    HIP_CALL(hipFree(ipiv));
+    HIP_CALL(hipFree(d_Dmatrix_hip));
+    HIP_CALL(hipFree(d_Cvals_hip));
+    HIP_CALL(hipFree(d_Bvals_hip));
+    HIP_CALL(hipFree(d_Bcols_hip));
+    HIP_CALL(hipFree(d_Brows_hip));
+    HIP_CALL(hipFree(x_hip));
+    HIP_CALL(hipFree(y_hip));
+    HIP_CALL(hipFree(z_hip));
+    HIP_CALL(hipFree(sol_hip));
+    HIP_CALL(hipFree(rhs_hip));
+    HIP_CALL(hipFree(info));
+
+    ROCSOLVER_CALL(rocblas_destroy_handle(handle));
 }
 
 std::vector<double> RocsolverMSWContribution::solveSytem()
@@ -549,10 +592,13 @@ std::vector<double> RocsolverMSWContribution::apply()
 
   //blocksrmvCtz(d_Cvals_hip, d_Bcols_hip, d_Brows_hip, z_hip, y_hip, sol_hip, sizeBrows-1, 4, 3, -1.0, CzSize, sizeBvals);
   //HIP_CALL(hipDeviceSynchronize());
-  blocksrmvC_z(d_Cvals_hip, d_Bcols_hip, d_Brows_hip, z_hip, y_hip, sizeBrows - 1, 4, 3);
+  blocksrmvC_z(d_Cvals_hip, d_Bcols_hip, d_Brows_hip, z_hip, y_hip, sizeBcols, sizeBrows - 1, 3, 4);
 
-  vecY.resize(resSize);
-  HIP_CALL(hipMemcpy(vecY.data(), y_hip, resSize*sizeof(double),hipMemcpyDeviceToHost));
+
+  vecY.resize(CzSize);
+  HIP_CALL(hipMemcpy(vecY.data(), y_hip, CzSize*sizeof(double),hipMemcpyDeviceToHost));
+
+  freeRocSOLVER();
 
   //return z1;
 

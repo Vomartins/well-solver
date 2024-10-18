@@ -26,18 +26,18 @@
 
 
   RocsparseMSWContribution::~RocsparseMSWContribution() {
-    HIP_CALL(hipFree(d_Dvals_hip));
-    HIP_CALL(hipFree(d_Drows_hip));
-    HIP_CALL(hipFree(d_Dcols_hip));
-    HIP_CALL(hipFree(z_aux_hip));
-    HIP_CALL(hipFree(z1_hip));
-    HIP_CALL(hipFree(z2_hip));
-    HIP_CALL(hipFree(d_buffer));
-    ROCSPARSE_CALL(rocsparse_destroy_handle(handle));
-    ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_M));
-    ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_L));
-    ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_U));
-    ROCSPARSE_CALL(rocsparse_destroy_mat_info(ilu_info));
+    // HIP_CALL(hipFree(d_Dvals_hip));
+    // HIP_CALL(hipFree(d_Drows_hip));
+    // HIP_CALL(hipFree(d_Dcols_hip));
+    // HIP_CALL(hipFree(z_aux_hip));
+    // HIP_CALL(hipFree(z1_hip));
+    // HIP_CALL(hipFree(z2_hip));
+    // HIP_CALL(hipFree(d_buffer));
+    // ROCSPARSE_CALL(rocsparse_destroy_handle(handle));
+    // ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_M));
+    // ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_L));
+    // ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_U));
+    // ROCSPARSE_CALL(rocsparse_destroy_mat_info(ilu_info));
   }
 
   void RocsparseMSWContribution::initialize(unsigned int M_, unsigned int nnzs_, unsigned int sizeDvals_, unsigned int sizeDrows_, unsigned int sizeDcols_)
@@ -118,6 +118,22 @@
     return true;
   }
 
+  void RocsparseMSWContribution::freeRocSPARSE()
+  {
+    HIP_CALL(hipFree(d_Dvals_hip));
+    HIP_CALL(hipFree(d_Drows_hip));
+    HIP_CALL(hipFree(d_Dcols_hip));
+    HIP_CALL(hipFree(z_aux_hip));
+    HIP_CALL(hipFree(z1_hip));
+    HIP_CALL(hipFree(z2_hip));
+    HIP_CALL(hipFree(d_buffer));
+    ROCSPARSE_CALL(rocsparse_destroy_handle(handle));
+    ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_M));
+    ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_L));
+    ROCSPARSE_CALL(rocsparse_destroy_mat_descr(descr_U));
+    ROCSPARSE_CALL(rocsparse_destroy_mat_info(ilu_info));
+  }
+
   void RocsparseMSWContribution::ilu0Solver()
   {
     double one  = 1.0;
@@ -156,6 +172,8 @@
 
     vecSol.resize(M);
     HIP_CALL(hipMemcpy(vecSol.data(), z2_hip, M*sizeof(double),hipMemcpyDeviceToHost));
+
+    freeRocSPARSE();
 
     return vecSol;
   }
