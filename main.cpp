@@ -331,14 +331,20 @@ int main(int argc, char ** argv)
             unsigned int colIdx = Bcols[blockID];
             for (unsigned int j = 0; j < dim; ++j) {
                 double temp = 0.0;
+                row = colIdx * dim + j;
+                printf("Row: %u,\n", row);
                 for (unsigned int k = 0; k < dim_wells; ++k) {
-                    temp += Cvals[blockID * dim * dim_wells + j + k * dim] * z2[blockrow * dim_wells + k];
+                    double C_elem = Cvals[blockID * dim * dim_wells + j + k * dim];
+                    double z_elem = z2[blockrow * dim_wells + k];
+                    //temp += C_elem * z_elem;
+                    vecy[row] -= C_elem * z_elem;
+                    printf("C_elem: %.15f(%u), z_elem: %.15f(%u), local_out: %.15f, y(row): %.15f\n", C_elem, blockID * dim * dim_wells + j + k * dim, z_elem, blockrow * dim_wells + k, C_elem * z_elem, vecy[row]);
                 }
                 //printf("block: %i, col: %i\n", blockID, colIdx);
                 //printf("y_elem: %i\n", colIdx * dim + j);
-                row = colIdx * dim + j;
-                vecy[row] -= temp;
-                printf("Row: %u, y(row): %.10f\n", row, vecy[row]);
+
+                //vecy[row] -= temp;
+                //printf("y(row): %.12f\n", vecy[row]);
             }
         }
     }

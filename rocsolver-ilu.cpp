@@ -317,20 +317,21 @@ __global__ void blocksrmvC_z_k(const Scalar *vals,
         unsigned int first_block = rows[target_block_row];
         unsigned int last_block = rows[target_block_row + 1];
         unsigned int block = first_block + lane / (bsM * bsN);
-        Scalar local_out = 0.0;
+        //Scalar local_out = 0.0;
 
         // Compute Cz
-        if (lane < num_active_threads) {
+        //if (lane < num_active_threads) {
             for (; block < last_block; block += num_blocks_per_warp) {
+                printf("r: %u, c: %u\n", r, c);
                 Scalar z_elem = z[target_block_row*bsN + r];  // Access z using the column of the current block
                 Scalar A_elem = vals[block * bsM * bsN + c + r*bsM]; // Access corresponding element of C
-                local_out += A_elem * z_elem; // Accumulate
+                //local_out += A_elem * z_elem; // Accumulate
                 unsigned int row = cols[block] * bsM + c;
                 y[row] -= A_elem * z_elem;
-                printf("Row: %u, y(row): %.10f\n", row, y[row]);
+                printf("Row: %u, A_elem: %.15f(%u), z_elem:  %.15f(%u), local_out:  %.15f, y(row): %.15f\n", row, A_elem, block * bsM * bsN + c + r*bsM, z_elem, target_block_row*bsN + r, A_elem * z_elem, y[row]);
                 //printf("Block %u, A_elem: %f(%i), z_elem: %f(%i)\n", block, A_elem, block * bsM * bsN + c + r*bsM, z_elem, target_block_row*bsN + r);
             }
-        }
+        //}
 
 /*
         // Store the result in shared memory
