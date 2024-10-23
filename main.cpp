@@ -11,7 +11,19 @@
 
 #include <dune/common/timer.hh>
 
+#include <hip/hip_runtime_api.h>
+#include <hip/hip_runtime.h>
+#include <hip/hip_version.h>
+
+
 #define VAR_NAME(var) (#var)
+
+__global__ void test(double a, double b, double res){
+  if (threadIdx.x == 0)
+    printf("a: %f\n", a);
+    printf("b: %f\n", b);
+    res = a - b;
+}
 
 double errorInfinityNorm(std::vector<double> vecSol, std::vector<double> vec, bool printError = false, bool printErrorVector = false){
   std::vector<double> error(size(vecSol), -1.0);
@@ -332,13 +344,13 @@ int main(int argc, char ** argv)
             for (unsigned int j = 0; j < dim; ++j) {
                 double temp = 0.0;
                 row = colIdx * dim + j;
-                printf("Row: %u,\n", row);
+                //printf("Row: %u,\n", row);
                 for (unsigned int k = 0; k < dim_wells; ++k) {
                     double C_elem = Cvals[blockID * dim * dim_wells + j + k * dim];
                     double z_elem = z2[blockrow * dim_wells + k];
                     //temp += C_elem * z_elem;
                     vecy[row] -= C_elem * z_elem;
-                    printf("C_elem: %.15f(%u), z_elem: %.15f(%u), local_out: %.15f, y(row): %.15f\n", C_elem, blockID * dim * dim_wells + j + k * dim, z_elem, blockrow * dim_wells + k, C_elem * z_elem, vecy[row]);
+                    //printf("C_elem: %.15f(%u), z_elem: %.15f(%u), local_out: %.15f, y(row): %.15f\n", C_elem, blockID * dim * dim_wells + j + k * dim, z_elem, blockrow * dim_wells + k, C_elem * z_elem, vecy[row]);
                 }
                 //printf("block: %i, col: %i\n", blockID, colIdx);
                 //printf("y_elem: %i\n", colIdx * dim + j);
@@ -353,9 +365,6 @@ int main(int argc, char ** argv)
     cpuTime += cpuMatrix.lastElapsed();
 
     errorInfinityNormDebug(vecY_hip, vecy, 1e-20, true);
-    std::cout << std::endl;
-
-    errorInfinityNormDebug(vecY_hip, vecy, 1e-8, true);
     std::cout << std::endl;
 
     std::cout << "########## Speed Factors ########## " << std::endl;

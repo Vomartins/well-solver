@@ -328,7 +328,7 @@ __global__ void blocksrmvC_z_k(const Scalar *vals,
                 //local_out += A_elem * z_elem; // Accumulate
                 unsigned int row = cols[block] * bsM + c;
                 y[row] -= A_elem * z_elem;
-                printf("Row: %u, A_elem: %.15f(%u), z_elem:  %.15f(%u), local_out:  %.15f, y(row): %.15f\n", row, A_elem, block * bsM * bsN + c + r*bsM, z_elem, target_block_row*bsN + r, A_elem * z_elem, y[row]);
+                printf("threadId: %u\n Row: %u, A_elem: %.15f(%u), z_elem:  %.15f(%u), local_out:  %.15f, y(row): %.15f\n", idx_t, row, A_elem, block * bsM * bsN + c + r*bsM, z_elem, target_block_row*bsN + r, A_elem * z_elem, y[row]);
                 //printf("Block %u, A_elem: %f(%i), z_elem: %f(%i)\n", block, A_elem, block * bsM * bsN + c + r*bsM, z_elem, target_block_row*bsN + r);
             }
         //}
@@ -364,6 +364,45 @@ __global__ void blocksrmvC_z_k(const Scalar *vals,
 */
         target_block_row += (warpsize / blockDim.x);
 
+    }
+}
+
+template<class Scalar>
+__global__ void serial_blocksrmvC_z_k(const Scalar *vals,
+                                 const unsigned int *cols,
+                                 const unsigned int *rows,
+                                 const unsigned int Nb,
+                                 const unsigned int Nbr,
+                                 const Scalar *z,
+                                 Scalar *y,
+                                 const unsigned int block_dimM,
+                                 const unsigned int block_dimN)
+{
+    const unsigned int bsM = block_dimM;
+    const unsigned int bsN = block_dimN;
+    const unsigned int col = blockDim.x * blockIdx.x + threadIdx.x;
+
+    const unsigned int blockCol = col / blockDim.x;
+    const unsigned int first_block = rows[blockCol];
+    const unsigned int last_block = rows[blockCol+1];
+
+    double local_sum;
+
+    for (unsigned int block = first_block; block < last_block; block++){
+        for (int c = 0; c < bsM; c++){
+            local_sum = 0.0;
+            for (int r = 0; r < bsN; r++){
+                unsigned int Cidx = block * bsM * bsN + c + r * bsM;
+                double Cvals = vals[Cidx];
+                unsigned int zidx = blockCol * bsN + r;
+                double z_elem = z[zidx];
+                local_sum += Cvals*z_elem;
+                //printf("Cvals: %.12f(%u), z_elem: %.12f(%u), local_sum: %.12f\n", Cvals, Cidx, z_elem, zidx, local_sum);
+            }
+            unsigned int yidx = cols[block] * bsM + c;
+            y[yidx] -= local_sum;
+            //printf("y_elem: %.12f(%u)\n", y[yidx], yidx);
+        }
     }
 }
 
@@ -433,14 +472,13 @@ void RocsolverMSWContribution::blocksrmvCtz(double* vals, unsigned int* cols, un
 
 void RocsolverMSWContribution::blocksrmvC_z(double* vals, unsigned int* cols, unsigned int* rows, double* z, double* y, unsigned int Nb, unsigned int Nbr, unsigned int block_dimM, unsigned int block_dimN)
 {
-    unsigned int blockDim = 32; // Set the block size
-    // unsigned int number_wg = std::ceil(Nb/blockDim);
-    // unsigned int num_work_groups = number_wg == 0 ? 1 : number_wg;
-    // unsigned int gridDim = num_work_groups*blockDim;
-    unsigned int gridDim = (Nb + blockDim - 1) / blockDim;  // Calculate grid size
-    unsigned int shared_mem_size = blockDim * sizeof(double) * block_dimM * block_dimN;  // Allocate shared memory size
+    unsigned int Nthreads = 1;
+    unsigned int Nblocks = Nbr;
 
-    blocksrmvC_z_k<<<gridDim, blockDim, shared_mem_size>>>(vals, cols, rows, Nb, Nbr, z, y, block_dimM, block_dimN);
+    dim3 block(Nthreads, 1, 1);
+    dim3 grid(Nblocks, 1, 1);
+
+    serial_blocksrmvC_z_k<<<grid, block>>>(vals, cols, rows, Nb, Nbr, z, y, block_dimM, block_dimN);
 
     HIP_CALL(hipGetLastError()); // Check for errors
     // HIP_CALL(hipDeviceSynchronize()); // Uncomment for synchronization if needed
