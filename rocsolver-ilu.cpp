@@ -368,11 +368,64 @@ __global__ void blocksrmvC_z_k(const Scalar *vals,
 }
 
 template<class Scalar>
+__global__ void serial_blocksrmvB_x_k(const Scalar *vals,
+                                 const unsigned int *cols,
+                                 const unsigned int *rows,
+                                 const Scalar *x,
+                                 Scalar *y,
+                                 const unsigned int block_dimM,
+                                 const unsigned int block_dimN)
+{
+    const unsigned int bsM = block_dimM;
+    const unsigned int bsN = block_dimN;
+    const unsigned int row = blockDim.x * blockIdx.x + threadIdx.x;
+
+    const unsigned int blockRow = row;
+    const unsigned int first_block = rows[blockRow];
+    const unsigned int last_block = rows[blockRow+1];
+
+    double local_sum;
+
+    for (unsigned int block = first_block; block < last_block; block++){
+        for (int r = 0; r < bsM; r++){
+            local_sum = 0.0;
+            unsigned int yidx = blockRow * bsM + r;
+            for (int c = 0; c < bsN; c++){
+                unsigned int Bidx = block * bsM * bsN + r * bsN + c;
+                double Bvals = vals[Bidx];
+                unsigned int xidx = cols[block] * bsN + c;
+                double x_elem = x[xidx];
+                local_sum += Bvals*x_elem;
+                //y[yidx] += Bvals*x_elem;
+                //printf("Block: %u, Thread: %u, row: %u, Bvals: %.15f(%u), x_elem: %.15f(%u), local_mult: %.15f, local_sum: %.15f\n", blockIdx.x, threadIdx.x, yidx, Bvals, Bidx, x_elem, xidx, Bvals*x_elem , local_sum/*local_sum*/);
+            }
+            y[yidx] = local_sum;
+            //printf("y_elem: %.15f(%u)\n", y[yidx], yidx);
+        }
+    }
+}
+
+void RocsolverMSWContribution::blocksrmvB_x(double* vals, unsigned int* cols, unsigned int* rows, double* x, double* y, unsigned int Nb, unsigned int Nbr, unsigned int block_dimM, unsigned int block_dimN)
+{
+    unsigned int Nthreads = 1;
+    unsigned int Nblocks = Nbr;
+
+    dim3 block(Nthreads, 1, 1);
+    dim3 grid(Nblocks, 1, 1);
+
+    std::cout << "Bx serial kernel" << std::endl;
+    std::cout << "Number of block rows: " << Nblocks << std::endl;
+
+    serial_blocksrmvB_x_k<<<grid, block>>>(vals, cols, rows, x, y, block_dimM, block_dimN);
+
+    HIP_CALL(hipGetLastError()); // Check for errors
+    HIP_CALL(hipDeviceSynchronize()); // Uncomment for synchronization if needed
+}
+
+template<class Scalar>
 __global__ void serial_blocksrmvC_z_k(const Scalar *vals,
                                  const unsigned int *cols,
                                  const unsigned int *rows,
-                                 const unsigned int Nb,
-                                 const unsigned int Nbr,
                                  const Scalar *z,
                                  Scalar *y,
                                  const unsigned int block_dimM,
@@ -382,7 +435,7 @@ __global__ void serial_blocksrmvC_z_k(const Scalar *vals,
     const unsigned int bsN = block_dimN;
     const unsigned int col = blockDim.x * blockIdx.x + threadIdx.x;
 
-    const unsigned int blockCol = col / blockDim.x;
+    const unsigned int blockCol = col;
     const unsigned int first_block = rows[blockCol];
     const unsigned int last_block = rows[blockCol+1];
 
@@ -391,19 +444,36 @@ __global__ void serial_blocksrmvC_z_k(const Scalar *vals,
     for (unsigned int block = first_block; block < last_block; block++){
         for (int c = 0; c < bsM; c++){
             local_sum = 0.0;
+            unsigned int yidx = cols[block] * bsM + c;
             for (int r = 0; r < bsN; r++){
-                unsigned int Cidx = block * bsM * bsN + c + r * bsM;
+                unsigned int Cidx = block * bsM * bsN + r * bsM + c;
                 double Cvals = vals[Cidx];
                 unsigned int zidx = blockCol * bsN + r;
                 double z_elem = z[zidx];
                 local_sum += Cvals*z_elem;
-                //printf("Cvals: %.12f(%u), z_elem: %.12f(%u), local_sum: %.12f\n", Cvals, Cidx, z_elem, zidx, local_sum);
+                //printf("Block: %u, Thread: %u, Cvals: %.12f(%u), z_elem: %.12f(%u), local_sum: %.12f\n", blockIdx.x, threadIdx.x, Cvals, Cidx, z_elem, zidx, local_sum);
             }
-            unsigned int yidx = cols[block] * bsM + c;
             y[yidx] -= local_sum;
             //printf("y_elem: %.12f(%u)\n", y[yidx], yidx);
         }
     }
+}
+
+void RocsolverMSWContribution::blocksrmvC_z(double* vals, unsigned int* cols, unsigned int* rows, double* z, double* y, unsigned int Nb, unsigned int Nbr, unsigned int block_dimM, unsigned int block_dimN)
+{
+    unsigned int Nthreads = Nbr;
+    unsigned int Nblocks = 1;
+
+    dim3 block(Nthreads, 1, 1);
+    dim3 grid(Nblocks, 1, 1);
+
+    std::cout << "Cz serial kernel" << std::endl;
+    std::cout << "Number of block rows: " << Nblocks << std::endl;
+
+    serial_blocksrmvC_z_k<<<grid, block>>>(vals, cols, rows, z, y, block_dimM, block_dimN);
+
+    HIP_CALL(hipGetLastError()); // Check for errors
+    HIP_CALL(hipDeviceSynchronize()); // Uncomment for synchronization if needed
 }
 
 void RocsolverMSWContribution::scalar_csr(int m, int threads_per_block, unsigned int* row_offsets, unsigned int* cols, double* vals, double* x, double* y, double alpha, double beta)
@@ -469,20 +539,6 @@ void RocsolverMSWContribution::blocksrmvCtz(double* vals, unsigned int* cols, un
   HIP_CALL(hipGetLastError()); // Check for errors
   HIP_CALL(hipDeviceSynchronize()); // Synchronize to ensure completion
 }*/
-
-void RocsolverMSWContribution::blocksrmvC_z(double* vals, unsigned int* cols, unsigned int* rows, double* z, double* y, unsigned int Nb, unsigned int Nbr, unsigned int block_dimM, unsigned int block_dimN)
-{
-    unsigned int Nthreads = 1;
-    unsigned int Nblocks = Nbr;
-
-    dim3 block(Nthreads, 1, 1);
-    dim3 grid(Nblocks, 1, 1);
-
-    serial_blocksrmvC_z_k<<<grid, block>>>(vals, cols, rows, Nb, Nbr, z, y, block_dimM, block_dimN);
-
-    HIP_CALL(hipGetLastError()); // Check for errors
-    // HIP_CALL(hipDeviceSynchronize()); // Uncomment for synchronization if needed
-}
 
 void checkHIPAlloc(void* ptr) {
     if (ptr == nullptr) {
@@ -622,10 +678,10 @@ std::vector<double> RocsolverMSWContribution::apply()
   //scalar_csc(sizeBrows-1, 32, d_Brows_hip, d_Bcols_hip, d_Bvals_hip, x_hip, z_hip, 1.0, 0.0);
   //spmv_k(sizeBrows-1, 32, d_Brows_hip, d_Bcols_hip, d_Bvals_hip, x_hip, z_hip);
 
-  blockrsmvBx(d_Bvals_hip, d_Bcols_hip, d_Brows_hip, x_hip, rhs_hip, z_hip, sizeBrows-1, 4, 3, +1.0);
+  HIP_CALL(hipMemset(z_hip, 0.0, ldb*Nrhs*sizeof(double)));
 
-  //z1.resize(ldb*Nrhs);
-  //HIP_CALL(hipMemcpy(z1.data(), z_hip, ldb*Nrhs*sizeof(double),hipMemcpyDeviceToHost));
+  //blockrsmvBx(d_Bvals_hip, d_Bcols_hip, d_Brows_hip, x_hip, rhs_hip, z_hip, sizeBrows-1, 4, 3, +1.0);
+  blocksrmvB_x(d_Bvals_hip, d_Bcols_hip, d_Brows_hip, x_hip, z_hip, sizeBcols, sizeBrows - 1, 4, 3);
 
   std::vector<double> vec_return = solveSytem();
 

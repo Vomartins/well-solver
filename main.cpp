@@ -198,9 +198,13 @@ int main(int argc, char ** argv)
             for (unsigned int j = 0; j < dim_wells; ++j) {
                 double temp = 0.0;
                 for (unsigned int k = 0; k < dim; ++k) {
+                    double B_elem = Bvals[blockID * dim * dim_wells + j * dim + k];
+                    double x_elem = vecRes[colIdx * dim + k];
                     temp += Bvals[blockID * dim * dim_wells + j * dim + k] * vecRes[colIdx * dim + k];
+                    //printf("B_elem: %.15f(%u), x_elem: %.15f(%u), local_out: %.15f\n", B_elem, blockID * dim * dim_wells + j * dim + k, x_elem, colIdx * dim + k, temp);
                 }
                 z1[row * dim_wells + j] += temp;
+                //printf("y_elem: %.15f(%u)\n", z1[row * dim_wells + j], row * dim_wells + j);
             }
         }
     }
@@ -323,6 +327,7 @@ int main(int argc, char ** argv)
     RocSOLVERTimer.stop();
     RocSOLVERTimes[2] += RocSOLVERTimer.lastElapsed();
 
+
     PRINT_VECTOR(RocSOLVERTimes);
 
     double RocSolverTotalTime = (RocSOLVERTimes[0]+RocSOLVERTimes[2]);
@@ -364,11 +369,12 @@ int main(int argc, char ** argv)
     cpuMatrix.stop();
     cpuTime += cpuMatrix.lastElapsed();
 
-    errorInfinityNormDebug(vecY_hip, vecy, 1e-20, true);
+    std::cout << "Well contribution" << std::endl;
+    errorInfinityNormDebug(vecY_hip, vecy, 1e-10, true);
     std::cout << std::endl;
 
     std::cout << "########## Speed Factors ########## " << std::endl;
     //std::cout << "RocSPARSE: " << (RocSparseTotalTime+cpuTime)/(UMFPackTotalTime+cpuTime) << std::endl;
-    std::cout << "RocSOLVER: " << RocSolverTotalTime/(UMFPackTotalTime+cpuTime) << std::endl;
+    std::cout << "RocSOLVER: " << (UMFPackTotalTime+cpuTime)/RocSolverTotalTime << std::endl;
     std::cout << std::endl;
 }

@@ -109,6 +109,8 @@ public:
                     const double op_sign,
                     const unsigned int resSize,
                     const int sizeBvals);*/
+  void blocksrmvB_x(double* vals, unsigned int* cols, unsigned int* rows, double* x, double* y, unsigned int Nb, unsigned int Nbr, unsigned int block_dimM, unsigned int block_dimN);
+
   void blocksrmvC_z(double* vals, unsigned int* cols, unsigned int* rows, double* z, double* y, unsigned int Nb, unsigned int Nbr, unsigned int block_dimM, unsigned int block_dimN);
 
   std::vector<double> apply();
