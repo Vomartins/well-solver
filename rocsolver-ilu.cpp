@@ -399,7 +399,7 @@ __global__ void serial_blocksrmvB_x_k(const Scalar *vals,
                 //y[yidx] += Bvals*x_elem;
                 //printf("Block: %u, Thread: %u, row: %u, Bvals: %.15f(%u), x_elem: %.15f(%u), local_mult: %.15f, local_sum: %.15f\n", blockIdx.x, threadIdx.x, yidx, Bvals, Bidx, x_elem, xidx, Bvals*x_elem , local_sum/*local_sum*/);
             }
-            y[yidx] = local_sum;
+            y[yidx] += local_sum;
             //printf("y_elem: %.15f(%u)\n", y[yidx], yidx);
         }
     }
@@ -451,7 +451,7 @@ __global__ void serial_blocksrmvC_z_k(const Scalar *vals,
                 unsigned int zidx = blockCol * bsN + r;
                 double z_elem = z[zidx];
                 local_sum += Cvals*z_elem;
-                //printf("Block: %u, Thread: %u, Cvals: %.12f(%u), z_elem: %.12f(%u), local_sum: %.12f\n", blockIdx.x, threadIdx.x, Cvals, Cidx, z_elem, zidx, local_sum);
+                printf("Yidx: %u, Block: %u, Thread: %u,  Cvals: %.12f(%u), z_elem: %.12f(%u), local_sum: %.12f\n", yidx, blockIdx.x, threadIdx.x,  Cvals, Cidx, z_elem, zidx, local_sum);
             }
             y[yidx] -= local_sum;
             //printf("y_elem: %.12f(%u)\n", y[yidx], yidx);
@@ -674,9 +674,6 @@ std::vector<double> RocsolverMSWContribution::solveSytem()
 
 std::vector<double> RocsolverMSWContribution::apply()
 {
-  //scalar_csr(Bm, 32, d_Brows_hip, d_Bcols_hip, d_Bvals_hip, x_hip, z_hip, 1.0, 0.0);
-  //scalar_csc(sizeBrows-1, 32, d_Brows_hip, d_Bcols_hip, d_Bvals_hip, x_hip, z_hip, 1.0, 0.0);
-  //spmv_k(sizeBrows-1, 32, d_Brows_hip, d_Bcols_hip, d_Bvals_hip, x_hip, z_hip);
 
   HIP_CALL(hipMemset(z_hip, 0.0, ldb*Nrhs*sizeof(double)));
 
