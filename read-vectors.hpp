@@ -11,6 +11,11 @@
 #include <limits.h>
 
 template <typename I>
+void saveSparseMatrixVectors(const std::vector<double>& vecVals, const std::vector<I>& vecCols, const std::vector<I>& vecRows, const std::string& filename);
+
+void saveVectorToFile(const std::vector<double>& vec, const std::string& filename);
+
+template <typename I>
 void loadSparseMatrixVectors(std::vector<double>& vecVals, std::vector<I>& vecCols, std::vector<I>& vecRows, const std::string& filename);
 
 std::vector<double> loadResVector(const std::string& filename);

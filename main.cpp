@@ -183,6 +183,7 @@ int main(int argc, char ** argv)
   //PRINT_VECTOR(Brows);
 
   unsigned int Mb = size(Brows)-1 ;
+  std::cout << "Number of blockrows: " << Mb << std::endl;
   unsigned int length = dim_wells*Mb;
 
   std::vector<double> z1(length, 0.0);          // z1 = B * x
